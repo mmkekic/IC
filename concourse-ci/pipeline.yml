@@ -4,7 +4,7 @@ resources:
 - name: IC
   type: git
   source:
-    uri: git@github.com:miguelsimon/IC.git
+    uri: https://github.com/miguelsimon/IC.git
     branch: concourse-ci
 
 jobs:
@@ -13,4 +13,4 @@ jobs:
   - get: IC
     trigger: true
   - task: tests
-    file: run.yml
+    file: IC/concourse-ci/run.yml

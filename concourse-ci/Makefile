@@ -5,7 +5,7 @@ build_docker_image: Dockerfile
 .PHONY: fly_execute
 fly_execute:
 	fly -t local execute \
-		--include_ignored \
+		--include-ignored \
 		--input IC=../ \
 		--config run.yml
 
