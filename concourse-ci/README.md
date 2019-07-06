@@ -1,7 +1,7 @@
 # Overview
 
 This sets up an example CI pipeline for the invisible cities project. The idea is that, whenever a pull request to a [protected branch](https://help.github.com/en/articles/about-protected-branches) happens:
-0. The branch is protected, so the merge cannot be performed until the CI approves.
+
 1. the CI runs the unit tests (currently what your travis CI runs) and errors out if they fail
 2. if unit tests pass, the CI submits a job to the majorana cluster that performs sanity checks; a report is generated and put somewhere (eg. a gce bucket)
 3. If the sanity checks also pass, the CI marks the PR as approved in github and the merge can now be performed.
