@@ -1,0 +1,13 @@
+
+platform: linux
+image_resource:
+  type: docker-image
+  source: {repository: ubuntu, tag: 18.04}
+inputs:
+  - name: IC
+run:
+  path: bash
+  args: [ "concourse-ci/run_tests.sh" ]
+  dir: IC
+params:
+  IC_PYTHON_VERSION: 3.7
