@@ -6,7 +6,7 @@ set -e
 : "${FAKE_CLUSTER_SSH_PRIVATE_KEY:?}"
 
 echo "Dummy script standing in for the integration tests to be run on the cluster."
-echo "Given credentials in passed in via environment variables, this script should post the job to the majorana cluster and gather the run results."
+echo "Given credentials passed in via environment variables, this script should post the job to the majorana cluster and gather the run results."
 echo "It should upload the results somewhere accessible by participants (eg. a gcs bucket)."
 echo "It should return a nonzero exit status if the results are erroneous."
 echo "----"
