@@ -20,8 +20,8 @@ I left a placeholder script to represent job submission/result gathering from th
 
 ## Prerequisites
 
-* docker-compose
-* make
+* [docker-compose](https://www.digitalocean.com/community/tutorials/how-to-install-docker-compose-on-ubuntu-18-04)
+* make ie if you're on some unix flavor you're fine
 
 ## Walkthrough
 
@@ -31,11 +31,11 @@ These steps must be executed from within this directory:
   `docker-compose up -d`
 2. navigate to [http://localhost:8080](http://localhost:8080) and login with username: test password: test
 3. download the [fly cli](https://concourse-ci.org/fly.html) from your local concourse installation
-4. log in via the command line:
+4. log in to concourse via the command line:
   `fly -t local login -c http://localhost:8080`
 5. push the build pipeline (the other requires a credential you don't have):
   `make set_local_build_pipeline`
 
 Voilà, you can now unpause the pipeline. The invisible cities tests should run (I'm basically doing the same thing your travis CI is doing).
 
-I'll put it up on my gce free account so you guys can access it at some point.
+I'll set up the protected branch and put it up on my gce free account so you guys can access it and test out the workflow.
