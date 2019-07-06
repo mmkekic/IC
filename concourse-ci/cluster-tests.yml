@@ -7,7 +7,7 @@ inputs:
   - name: IC
 run:
   path: bash
-  args: [ "concourse-ci/run_tests.sh" ]
+  args: [ "concourse-ci/cluster-tests.sh" ]
   dir: IC
 params:
-  IC_PYTHON_VERSION: 3.7
+  FAKE_CLUSTER_SSH_PRIVATE_KEY: ((FAKE_CLUSTER_SSH_PRIVATE_KEY))

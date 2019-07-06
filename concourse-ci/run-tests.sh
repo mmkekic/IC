@@ -10,4 +10,4 @@ git lfs install
 
 source manage.sh work_in_python_version_no_tests ${IC_PYTHON_VERSION}
 
-HYPOTHESIS_PROFILE=hard bash manage.sh run_tests_par 4
+HYPOTHESIS_PROFILE=hard bash manage.sh run_tests_par 2

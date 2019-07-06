@@ -1,0 +1,42 @@
+---
+resource_types:
+- name: pull-request
+  type: docker-image
+  source:
+    repository: teliaoss/github-pr-resource
+resources:
+- name: IC
+  type: pull-request
+  check_every: 1m
+  source:
+    repository: miguelsimon/IC
+    access_token: ((github_access_token))
+jobs:
+- name: unit-tests
+  serial: true
+  plan:
+  - get: IC
+    trigger: true
+    version: every
+  - put: IC
+    params:
+      path: IC
+      status: pending
+  - task: unit-tests
+    file: IC/concourse-ci/run-tests.yml
+  - task: cluster-tests
+    file: IC/concourse-ci/cluster-tests.yml
+    vars:
+      FAKE_CLUSTER_SSH_PRIVATE_KEY: ((FAKE_CLUSTER_SSH_PRIVATE_KEY))
+  on_success:
+    do:
+      - put: IC
+        params:
+          path: IC
+          status: success
+  on_failure:
+    do:
+      - put: IC
+        params:
+          path: IC
+          status: failure

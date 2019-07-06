@@ -1,0 +1,20 @@
+---
+
+resources:
+- name: IC
+  type: git
+  source:
+    uri: https://github.com/miguelsimon/IC.git
+    branch: concourse-ci
+
+jobs:
+- name: CI-tests
+  plan:
+  - get: IC
+    trigger: true
+  - task: unit-tests
+    file: IC/concourse-ci/run-tests.yml
+  - task: cluster-tests
+    file: IC/concourse-ci/cluster-tests.yml
+    vars:
+      FAKE_CLUSTER_SSH_PRIVATE_KEY: ((FAKE_CLUSTER_SSH_PRIVATE_KEY))
