@@ -1,4 +1,12 @@
+* [Overview](#overview)
+* [Usage](#usage)
+  * [Online demo version](#online-demo-version)
+  * [Walkthrough for executing concourse locally](#walkthrough-for-executing-concourse-locally)
+  * [Running on a server](#running-on-a-server)
+
 # Overview
+
+Proof of concept is up at [https://ci.ific-invisible-cities.com/](https://ci.ific-invisible-cities.com/). It's password protected, ask @mmkekic for access if you want to poke around, authorization for the real version would be mediated via oauth by membership in the [nextic github organization](https://github.com/nextic).
 
 This sets up an example CI pipeline for the invisible cities project. The idea is that, whenever a pull request to a [protected branch](https://help.github.com/en/articles/about-protected-branches) happens:
 
@@ -18,12 +26,20 @@ I left a placeholder script to represent job submission/result gathering from th
 
 # Usage
 
-## Prerequisites
+## Online demo version
+
+The concourse interface is up at [https://ci.ific-invisible-cities.com/](https://ci.ific-invisible-cities.com/).
+
+The easiest way to understand what's going on is just to open a test PR to the master branch in the [https://github.com/miguelsimon/IC](https://github.com/miguelsimon/IC) repo, you should see:
+* Merges are disallowed until the build passes
+* At least 1 review is required.
+
+## Walkthrough for executing concourse locally
+
+### Prerequisites
 
 * [docker-compose](https://www.digitalocean.com/community/tutorials/how-to-install-docker-compose-on-ubuntu-18-04)
 * make ie if you're on some unix flavor you're fine
-
-## Walkthrough
 
 These steps must be executed from within this directory:
 
@@ -38,4 +54,15 @@ These steps must be executed from within this directory:
 
 Voilà, you can now unpause the pipeline. The invisible cities tests should run (I'm basically doing the same thing your travis CI is doing).
 
-I'll set up the protected branch and put it up on my gce free account so you guys can access it and test out the workflow.
+## Running on a server
+
+I've set it up at [https://ci.ific-invisible-cities.com/](https://ci.ific-invisible-cities.com/).
+
+Doing that involves quite a bit of onerous and annoying details, dealing with dns, certificates, hosting etc. These are just annoying if you know what you're doing but require loads of time to learn all that boring trivia if you don't. I can talk to you guys and help you set it up in your context.
+
+The set up is mostly sane but the top priority was getting it working in < 3 hours so I'm mainly using stuff I'm comfortable with.
+
+Birds-eye overview of the current setup:
+* The deploy is specified in docker compose; I'm running postgres, concourse, an nginx frontend and [certbot](https://certbot.eff.org/) to set up free certificates via letsencrypt.
+* I'm running it on a trial google compute engine VM (google cloud is a very sane cloud provider when compared to others *cough* amazon *cough*)
+* access control is via username - password now, we'd delegate access control to github via oauth to avoid operational hassles
