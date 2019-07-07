@@ -1,3 +1,8 @@
+.PHONY: fly_remote_login
+fly_remote_login:
+	fly -t remote login \
+	  -c https://ci.ific-invisible-cities.com
+
 .PHONY: fly_execute
 fly_execute:
 	fly -t local execute \
