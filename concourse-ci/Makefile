@@ -42,10 +42,10 @@ set_pr_pipeline: credentials/github_access_token
 
 
 .PHONY: launch_prod_concourse
-launch_prod_concourse:
+launch_prod_concourse: credentials/CONCOURSE_TEST_PASSWORD
 	docker-compose -f prod-docker-compose.yml down -v --remove-orphans
 	docker-compose -f prod-docker-compose.yml run make_dummy_certs
-	docker-compose -f prod-docker-compose.yml up -d nginx
+	CONCOURSE_TEST_PASSWORD=$$(credentials/CONCOURSE_TEST_PASSWORD) docker-compose -f prod-docker-compose.yml up -d nginx
 	docker-compose -f prod-docker-compose.yml run erase_certs
 	docker-compose -f prod-docker-compose.yml run create_certs
 	docker-compose -f prod-docker-compose.yml exec nginx nginx -s reload

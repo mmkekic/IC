@@ -9,6 +9,7 @@ resources:
 
 jobs:
 - name: CI-tests
+  serial: true
   plan:
   - get: IC
     trigger: true
