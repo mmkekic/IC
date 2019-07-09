@@ -16,6 +16,7 @@ get_output () {
     -i $ICDIR/database/test_data/electrons_40keV_z250_RWF.h5 \
     -o $OUTDIR/irene_result \
     $ICTDIR/invisible_cities/config/irene.conf
+    rm -rf /root/miniconda
 }
 
 apt-get update && apt install -y curl build-essential
