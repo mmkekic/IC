@@ -5,9 +5,9 @@ image_resource:
   source: {repository: ubuntu, tag: 18.04}
 inputs:
   - name: IC
+  - name: IC_master
 run:
   path: bash
-  args: [ "concourse-ci/cluster-tests.sh" ]
-  dir: IC
+  args: [ "IC/concourse-ci/cluster-tests.sh" ]
 params:
   FAKE_CLUSTER_SSH_PRIVATE_KEY: ((FAKE_CLUSTER_SSH_PRIVATE_KEY))
