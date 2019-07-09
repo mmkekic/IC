@@ -17,7 +17,7 @@ resources:
   type: git
   source:
     uri: https://github.com/miguelsimon/IC.git
-    branch: concourse-ci
+    branch: master
 
 jobs:
 - name: unit-tests
@@ -36,8 +36,6 @@ jobs:
       context: unit-tests
   - task: unit-tests
     file: IC/concourse-ci/run-tests.yml
-  - task: cluster-tests
-    file: IC/concourse-ci/cluster-tests.yml
     vars:
       FAKE_CLUSTER_SSH_PRIVATE_KEY: ((FAKE_CLUSTER_SSH_PRIVATE_KEY))
   on_success:

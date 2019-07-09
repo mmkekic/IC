@@ -29,12 +29,12 @@ apt-get install -y git-lfs
 mkdir master_out
 ICTDIR=`pwd`/IC_master
 OUTDIR=master_out
-(get_output())
+(get_output)
 
 mkdir pr_out
 ICTDIR=`pwd`/IC
 OUTDIR=pr_out
-(get_output())
+(get_output)
 
 echo "Dummy script standing in for the integration tests to be run on the cluster."
 echo "Given credentials passed in via environment variables, this script should post the job to the majorana cluster and gather the run results."
