@@ -34,7 +34,7 @@ ls -lhtr $OUTDIR
 
 mkdir pr_out
 ICTDIR=`pwd`/IC
-OUTDIR=pr_out
+OUTDIR=`pwd`/pr_out
 (get_output)
 ls -lhtr $OUTDIR
 

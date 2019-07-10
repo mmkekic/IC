@@ -17,7 +17,7 @@ resources:
   type: git
   source:
     uri: https://github.com/miguelsimon/IC.git
-    branch: master
+    branch: concourse-ci
 
 jobs:
 - name: unit-tests
