@@ -72,7 +72,7 @@ function install_conda {
     fi
 }
 
-CONDA_ENV_TAG=2018-11-14
+CONDA_ENV_TAG=2020-03-10
 CONDA_ENV_NAME=IC-${PYTHON_VERSION}-${CONDA_ENV_TAG}
 
 function make_environment {
@@ -85,27 +85,28 @@ name: ${CONDA_ENV_NAME}
 dependencies:
 - python       = ${PYTHON_VERSION}
 # *REMEMBER TO CHANGE CONDA_ENV_TAG WHEN CHANGING VERSION NUMBERS*
-- cython       = 0.29
+- cython       = 0.29.15
 - jupyter      = 1.0.0
-- jupyterlab   = 0.35.3
-- matplotlib   = 3.0.1
-- networkx     = 2.2
-- notebook     = 5.7.0
-- numpy        = 1.15.2
-- pandas       = 0.23.4
-- seaborn      = 0.9.0
+- jupyterlab   = 1.2.6
+- matplotlib   = 3.1.3
+- networkx     = 2.4
+- notebook     = 6.0.3
+- numpy        = 1.18.1
+- pandas       = 1.0.1
+- seaborn      = 0.10.0
 - pymysql      = 0.9.2
-- pytables     = 3.4.4
-- pytest       = 3.8.2
-- scipy        = 1.1.0
-- sphinx       = 1.8.1
-- tornado      = 5.1.1
-- flaky        = 3.4.0
-- hypothesis   = 3.68.0
-- pytest-xdist = 1.23.2
-- coverage     = 4.5.4
-- pip:
-  - pytest-instafail==0.4.0
+- pytables     = 3.6.1
+- pytest       = 5.3.5
+- scipy        = 1.4.1
+- sphinx       = 2.4.0
+- tornado      = 6.0.3
+- flaky        = 3.6.1
+- coverage     = 5.0
+- hypothesis   = 5.5.4
+- pytest-xdist = 1.31.0
+- pip          = 20.0.2
+- pip :
+  - pytest-instafail
 EOF
 
     conda env create -f ${YML_FILENAME}
