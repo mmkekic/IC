@@ -30,89 +30,121 @@ from itertools import compress
 import numpy  as np
 import tables as tb
 
-from .. reco                    import    tbl_functions as tbl
-from .. reco                    import sensor_functions as sf
-from .. reco                    import   peak_functions as pkf
-from .. reco                    import    wfm_functions as wfm
-from .. sierpe                  import fee              as FE
-from .. core.random_sampling    import NoiseSampler     as SiPMsNoiseSampler
-from .. io.rwf_io               import           rwf_writer
-from .. io.run_and_event_io     import run_and_event_writer
-from .. io. event_filter_io     import  event_filter_writer
-from .. filters.trigger_filters import TriggerFilter
-from .. database                import load_db
-from .. evm.ic_containers       import TriggerParams
-from .. evm.pmaps               import S2
-from .. types.ic_types          import minmax
+from .. core   .random_sampling  import         NoiseSampler as SiPMsNoiseSampler
+from .. database                 import              load_db
+from .. evm    .ic_containers    import        TriggerParams
+from .. evm    .pmaps            import                   S2
+from .. filters.trigger_filters  import        TriggerFilter
+from .. io     .event_filter_io  import  event_filter_writer
+from .. io     .run_and_event_io import run_and_event_writer
+from .. io     .rwf_io           import           rwf_writer
+from .. reco                     import        tbl_functions as tbl
+from .. reco                     import     sensor_functions as sf
+from .. reco                     import       peak_functions as pkf
+from .. reco                     import        wfm_functions as wfm
+from .. sierpe                   import                  fee as FE
+from .. types  .ic_types         import               minmax
 
-from .. dataflow          import dataflow as fl
+from .. dataflow   import dataflow as fl
 
-from .  components import city
-from .  components import print_every
-from .  components import collect
-from .  components import copy_mc_info
-from .  components import sensor_data
-from .  components import deconv_pmt
-from .  components import WfType
+from .  components import          city
+from .  components import    deconv_pmt
+from .  components import       collect
+from .  components import  copy_mc_info
+from .  components import   print_every
+from .  components import   sensor_data
+from .  components import        WfType
 from .  components import wf_from_files
 
 
 @city
-def diomira(files_in, file_out, compression, event_range, print_mod, detector_db, run_number,
-            sipm_noise_cut, filter_padding, trigger_type,
-            trigger_params = dict(), s2_params = dict(),
-            random_seed = None):
+def diomira(files_in    , file_out      , compression   ,
+            event_range , print_mod     , detector_db   ,
+            run_number  , sipm_noise_cut, filter_padding,
+            trigger_type, trigger_params = dict(),
+            s2_params = dict(), random_seed = None):
     if random_seed is not None:
         np.random.seed(random_seed)
 
     sd = sensor_data(files_in[0], WfType.mcrd)
 
-    simulate_pmt_response_  = fl.map(simulate_pmt_response (detector_db, run_number),
+    simulate_pmt_response_  = fl.map(simulate_pmt_response (detector_db,
+                                                            run_number ),
                                      args="pmt" , out= ("pmt_sim", "blr_sim"))
-    simulate_sipm_response_ = fl.map(simulate_sipm_response(detector_db, run_number, sd.SIPMWL, sipm_noise_cut, filter_padding),
+    simulate_sipm_response_ = fl.map(simulate_sipm_response(detector_db   ,
+                                                            run_number    ,
+                                                            sd.SIPMWL     ,
+                                                            sipm_noise_cut,
+                                                            filter_padding),
                                      args="sipm", out="sipm_sim"             )
-    trigger_filter_         = select_trigger_filter(trigger_type, trigger_params, s2_params)
-    emulate_trigger_        = fl.map(emulate_trigger(detector_db, run_number, trigger_type, trigger_params, s2_params), args="pmt_sim", out="trigger_sim")
-    trigger_pass            = fl.map(trigger_filter_, args="trigger_sim", out="trigger_pass")
+    trigger_filter_         = select_trigger_filter(trigger_type  ,
+                                                    trigger_params,
+                                                    s2_params     )
+    emulate_trigger_        = fl.map(emulate_trigger(detector_db   ,
+                                                     run_number    ,
+                                                     trigger_type  ,
+                                                     trigger_params,
+                                                     s2_params     ),
+                                     args="pmt_sim", out="trigger_sim"       )
+    trigger_pass            = fl.map(trigger_filter_   ,
+                                     args="trigger_sim",
+                                     out="trigger_pass")
     trigger_filter          = fl.count_filter(bool, args="trigger_pass")
 
     with tb.open_file(file_out, "w", filters=tbl.filters(compression)) as h5out:
         RWF        = partial(rwf_writer, h5out, group_name='RD')
-        write_pmt  = fl.sink(RWF(table_name='pmtrwf' , n_sensors=sd.NPMT , waveform_length=sd. PMTWL // int(FE.t_sample)), args= "pmt_sim")
-        write_blr  = fl.sink(RWF(table_name='pmtblr' , n_sensors=sd.NPMT , waveform_length=sd. PMTWL // int(FE.t_sample)), args= "blr_sim")
-        write_sipm = fl.sink(RWF(table_name='sipmrwf', n_sensors=sd.NSIPM, waveform_length=sd.SIPMWL                    ), args="sipm_sim")
+        write_pmt  = fl.sink(RWF(table_name      = 'pmtrwf',
+                                 n_sensors       = sd.NPMT ,
+                                 waveform_length = sd.PMTWL // int(FE.t_sample)),
+                                 args= "pmt_sim")
+        write_blr  = fl.sink(RWF(table_name      = 'pmtblr',
+                                 n_sensors       = sd.NPMT ,
+                                 waveform_length = sd.PMTWL // int(FE.t_sample)),
+                                 args= "blr_sim")
+        write_sipm = fl.sink(RWF(table_name      = 'sipmrwf',
+                                 n_sensors       = sd.NSIPM ,
+                                 waveform_length = sd.SIPMWL),
+                                 args="sipm_sim")
 
         write_event_info_ = run_and_event_writer(h5out)
-        write_evt_filter_ = event_filter_writer (h5out, "trigger", compression=compression)
+        write_evt_filter_ = event_filter_writer (h5out                    ,
+                                                 "trigger"                ,
+                                                 compression = compression)
 
-        write_event_info = fl.sink(write_event_info_, args=("run_number", "event_number", "timestamp"   ))
-        write_evt_filter = fl.sink(write_evt_filter_, args=(              "event_number", "trigger_pass"))
+        write_event_info = fl.sink(write_event_info_,
+                                   args=("run_number", "event_number",
+                                         "timestamp"                 ))
+        write_evt_filter = fl.sink(write_evt_filter_,
+                                   args=("event_number", "trigger_pass"))
 
         event_count_in = fl.spy_count()
 
         evtnum_collect = collect()
 
         result = fl.push(source = wf_from_files(files_in, WfType.mcrd),
-                         pipe   = fl.pipe(fl.slice(*event_range, close_all=True)        ,
-                                          event_count_in.spy                            ,
-                                          print_every(print_mod)                        ,
-                                          simulate_pmt_response_                        ,
-                                          emulate_trigger_                              ,
-                                          trigger_pass                                  ,
-                                          fl.branch(write_evt_filter)                   ,
-                                          trigger_filter.filter                         ,
-                                          simulate_sipm_response_                       ,
-                                          fl.branch("event_number", evtnum_collect.sink),
-                                          fl.fork(write_pmt                             ,
-                                                  write_blr                             ,
-                                                  write_sipm                            ,
-                                                  write_event_info)                     ),
+                         pipe   = fl.pipe(fl.slice(*event_range          ,
+                                                   close_all=True)      ,
+                                          event_count_in.spy            ,
+                                          print_every(print_mod)        ,
+                                          simulate_pmt_response_        ,
+                                          emulate_trigger_              ,
+                                          trigger_pass                  ,
+                                          fl.branch(write_evt_filter)   ,
+                                          trigger_filter.filter         ,
+                                          simulate_sipm_response_       ,
+                                          fl.branch("event_number"     ,
+                                                    evtnum_collect.sink),
+                                          fl.fork(write_pmt       ,
+                                                  write_blr       ,
+                                                  write_sipm      ,
+                                                  write_event_info))     ,
                          result = dict(events_in     = event_count_in.future,
                                        evtnum_list   = evtnum_collect.future,
                                        events_filter = trigger_filter.future))
 
         if run_number <= 0:
-            copy_mc_info(files_in, h5out, result.evtnum_list)
+            copy_mc_info(files_in, h5out, result.evtnum_list,
+                         detector_db, run_number)
 
         return result
 
@@ -138,7 +170,8 @@ def simulate_pmt_response(detector, run_number):
     return simulate_pmt_response
 
 
-def simulate_sipm_response(detector, run_number, wf_length, noise_cut, filter_padding):
+def simulate_sipm_response(detector , run_number, wf_length,
+                           noise_cut, filter_padding):
     datasipm      = load_db.DataSiPM (detector, run_number)
     baselines     = load_db.SiPMNoise(detector, run_number)[-1]
     noise_sampler = SiPMsNoiseSampler(detector, run_number, wf_length, True)
