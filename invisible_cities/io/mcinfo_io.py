@@ -456,18 +456,6 @@ def read_mcinfo_evt (mctables: (tb.Table, tb.Table, tb.Table, tb.Table), event_n
 
 
 
-def compute_mchits_dict(mcevents:Mapping[int, Mapping[int, MCParticle]]) -> Mapping[int, Sequence[MCHit]]:
-    """Returns all hits in the event"""
-    mchits_dict = {}
-    for event_no, particle_dict in mcevents.items():
-        hits = []
-        for particle_no in particle_dict.keys():
-            particle = particle_dict[particle_no]
-            hits.extend(particle.hits)
-        mchits_dict[event_no] = hits
-    return mchits_dict
-
-
 def read_mchit_info(h5f, event_range=(0, int(1e9))) -> Mapping[int, Sequence[MCHit]]:
     """Returns all hits in the event"""
     mc_info = get_mc_info(h5f)
