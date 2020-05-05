@@ -200,13 +200,8 @@ def copy_mc_info(h5in : tb.File, writer : Type[mc_info_writer], which_events : L
         pass
 
 
-def load_mchits(file_name: str,
-                event_range=(0, int(1e9))) -> Mapping[int, Sequence[MCHit]]:
 
-    with tb.open_file(file_name, mode='r') as h5in:
-        mchits_dict = read_mchit_info(h5in, event_range)
 
-    return mchits_dict
 
 
 def load_mchits_df(file_name : str) -> pd.DataFrame:
