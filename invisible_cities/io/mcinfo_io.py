@@ -322,11 +322,7 @@ def read_mcparticles_df(h5in    : tb.file.File,
     return parts
 
 
-def load_mcsensor_response(file_name: str,
-                           event_range=(0, int(1e9))) -> Mapping[int, Mapping[int, Waveform]]:
 
-    with tb.open_file(file_name, mode='r') as h5in:
-        return read_mcsns_response(h5in, event_range)
 
 
 def get_sensor_binning(file_name : str) -> Tuple:
