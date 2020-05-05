@@ -313,6 +313,28 @@ def load_mchits_dfold(file_name : str) -> pd.DataFrame:
         return hits
 
 
+def cast_mchits_to_dict(hits_df: pd.DataFrame) -> Mapping[int, List[MCHit]]:
+    """
+    Casts the mchits dataframe to an
+    old style mapping.
+
+    paramerters
+    -----------
+    hits_df : pd.DataFrame
+              DataFrame containing event deposit information
+
+    returns
+    -------
+    hit_dict : Mapping
+               The same hit information cast into a dictionary
+               using MCHit objects.
+    """
+    hit_dict = {}
+    for evt, evt_hits in hits_df.groupby(level=0):
+        hit_dict[evt] = [MCHit( hit.iloc[0, :3].values,
+                               *hit.iloc[0, 3:].values)
+                         for _, hit in evt_hits.groupby(level=2)]
+    return hit_dict
 def load_mcparticles_df(file_name: str) -> pd.DataFrame:
     """
     Opens file and calls read_mcparticles_df
