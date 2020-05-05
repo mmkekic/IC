@@ -257,11 +257,7 @@ def read_mchits_df(h5in    : tb.file.File,
     return hits
 
 
-def load_mcparticles(file_name: str,
-                     event_range=(0, int(1e9))) -> Mapping[int, Mapping[int, MCParticle]]:
 
-    with tb.open_file(file_name, mode='r') as h5in:
-        return read_mcinfo(h5in, event_range)
 
 
 def load_mcparticles_df(file_name: str) -> pd.DataFrame:
