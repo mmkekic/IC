@@ -47,6 +47,7 @@ from .. io                        import                 mcinfo_io
 from .. io     .pmaps_io          import                load_pmaps
 from .. io     .hits_io           import              hits_from_df
 from .. io     .dst_io            import                  load_dst
+from .. io     .hits_io           import                 load_hits
 from .. types  .ic_types          import                        xy
 from .. types  .ic_types          import                        NN
 from .. types  .ic_types          import                       NNN
@@ -158,8 +159,13 @@ def collect():
     return fl.reduce(append, initial=[])()
 
 
-def copy_mc_info(files_in : List[str], h5out: tb.File, event_numbers: List[int]) -> None:
-    """Copy to an output file the MC info of a list of selected events.
+def copy_mc_info(files_in     : List[str],
+                 h5out        : tb.File  ,
+                 event_numbers: List[int],
+                 db_file      :      str ,
+                 run_number   :      int ) -> None:
+    """
+    Copy to an output file the MC info of a list of selected events.
 
     Parameters
     ----------
@@ -168,20 +174,21 @@ def copy_mc_info(files_in : List[str], h5out: tb.File, event_numbers: List[int])
     file_out : tables.File
         The output h5 file.
     event_numbers : List[int]
-        List of event numbers for which the MC info is copied to the output file.
+        List of event numbers for which the MC info is copied
+        to the output file.
     """
 
-    writer = mcinfo_io.mc_info_writer(h5out)
+    writer = mcinfo_io.mc_writer(h5out)
 
     for f in files_in:
-        with tb.open_file(f, "r") as h5in:
-            try:
-                event_numbers_in_file = h5in.root.MC.extents.cols.evt_number[:]
-                event_numbers_to_copy = list(evt for evt in event_numbers \
-                                             if evt in event_numbers_in_file)
-                mcinfo_io.copy_mc_info(h5in, writer, event_numbers_to_copy)
-            except tb.exceptions.NoSuchNodeError:
-                continue
+        try:
+            event_numbers_in_file = mcinfo_io.get_event_numbers_in_file(f)
+            event_numbers_to_copy = list(evt for evt in event_numbers \
+                                         if evt in event_numbers_in_file)
+            mcinfo_io.copy_mc_info(f, writer, event_numbers_to_copy,
+                                   db_file, run_number)
+        except tb.exceptions.NoSuchNodeError:
+            continue
 
 
 # TODO: consider caching database
@@ -325,7 +332,6 @@ def cdst_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.DataFrame, M
                 evts, _     = zip(*event_info[:])
                 bool_mask   = np.in1d(evts, cdst_df.event.unique())
                 event_info  = event_info[bool_mask]
-                mc_info     = get_mc_info_safe(h5in, run_number)
             except (tb.exceptions.NoSuchNodeError, IndexError):
                 continue
             check_lengths(event_info, cdst_df.event.unique())
@@ -333,7 +339,7 @@ def cdst_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.DataFrame, M
                 event_number, timestamp = evtinfo
                 yield dict(cdst    = cdst_df   .loc[cdst_df   .event==event_number],
                            summary = summary_df.loc[summary_df.event==event_number],
-                           mc=mc_info, run_number=run_number,
+                           run_number=run_number,
                            event_number=event_number, timestamp=timestamp)
             # NB, the monte_carlo writer is different from the others:
             # it needs to be given the WHOLE TABLE (rather than a
