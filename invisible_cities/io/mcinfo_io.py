@@ -456,53 +456,6 @@ def read_mcinfo_evt (mctables: (tb.Table, tb.Table, tb.Table, tb.Table), event_n
 
 
 
-def read_mcinfo(h5f, event_range=(0, int(1e9))) -> Mapping[int, Mapping[int, Sequence[MCParticle]]]:
-    mc_info = get_mc_info(h5f)
-
-    h5extents = mc_info.extents
-
-    events_in_file = len(h5extents)
-
-    all_events = {}
-
-    for iext in range(*event_range):
-        if iext >= events_in_file:
-            break
-
-        current_event           = {}
-        evt_number              = h5extents[iext]['evt_number']
-        hit_rows, particle_rows, generator_rows = read_mcinfo_evt(mc_info, evt_number, iext)
-
-        for h5particle in particle_rows:
-            this_particle = h5particle['particle_indx']
-            current_event[this_particle] = MCParticle(h5particle['particle_name'].decode('utf-8','ignore'),
-                                                      h5particle['primary'],
-                                                      h5particle['mother_indx'],
-                                                      h5particle['initial_vertex'],
-                                                      h5particle['final_vertex'],
-                                                      h5particle['initial_volume'].decode('utf-8','ignore'),
-                                                      h5particle['final_volume'].decode('utf-8','ignore'),
-                                                      h5particle['momentum'],
-                                                      h5particle['kin_energy'],
-                                                      h5particle['creator_proc'].decode('utf-8','ignore'))
-
-        for h5hit in hit_rows:
-            ipart            = h5hit['particle_indx']
-            current_particle = current_event[ipart]
-
-            hit = MCHit(h5hit['hit_position'],
-                        h5hit['hit_time'],
-                        h5hit['hit_energy'],
-                        h5hit['label'].decode('utf-8','ignore'))
-
-            current_particle.hits.append(hit)
-
-        evt_number             = h5extents[iext]['evt_number']
-        all_events[evt_number] = current_event
-
-    return all_events
-
-
 def compute_mchits_dict(mcevents:Mapping[int, Mapping[int, MCParticle]]) -> Mapping[int, Sequence[MCHit]]:
     """Returns all hits in the event"""
     mchits_dict = {}
