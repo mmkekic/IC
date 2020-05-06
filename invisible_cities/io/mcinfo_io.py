@@ -459,7 +459,7 @@ def load_mchits_dfold(file_name : str) -> pd.DataFrame:
     ----------
     file_name : str
                 Name of the file containing MC info
-    
+
     returns
     -------
     hits : pd.DataFrame
