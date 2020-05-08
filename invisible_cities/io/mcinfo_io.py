@@ -321,11 +321,22 @@ def load_mcconfiguration(file_name : str) -> pd.DataFrame:
     config           = load_dst(file_name, 'MC', 'configuration')
     if is_oldformat_file(file_name):
         binning_keys = config.param_key.str.contains('binning')
+        def binning_name(x):
+            if x[0]:
+                return x[0].replace('_time', '')
+            return x[2] + '_binning'
         ## Change the binning parameter names so that
         ## they match the format used in 2020 files
         new_names    = config[binning_keys].param_key.str.split(
-            '/', expand=True).apply(lambda x: x[2] + '_binning', axis=1)
+            '/', expand=True).apply(binning_name, axis=1)
         config.loc[binning_keys, 'param_key'] = new_names
+        ## Remove possible duplicates
+        config.drop(config[binning_keys                                   &
+                           config.param_key.str.contains( 'Pmt')].index[1:],
+                    inplace=True                                           )
+        config.drop(config[binning_keys                                   &
+                           config.param_key.str.contains('SiPM')].index[1:],
+                    inplace=True                                           )
     return config
 
 
