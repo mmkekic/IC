@@ -16,6 +16,7 @@ import tables as tb
 import numpy  as np
 import pandas as pd
 import inspect
+import warnings
 
 from .. dataflow                  import                  dataflow as  fl
 from .. evm    .ic_containers     import                SensorData
@@ -188,6 +189,7 @@ def copy_mc_info(files_in     : List[str],
             mcinfo_io.copy_mc_info(f, writer, event_numbers_to_copy,
                                    db_file, run_number)
         except tb.exceptions.NoSuchNodeError:
+            warnings.warn(f' File does not contain MC tables', UserWarning)
             continue
 
 
