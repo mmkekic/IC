@@ -175,6 +175,7 @@ def test_irene_output_file_structure(config_tmpdir):
         assert "runInfo"      in h5out.root.Run
 
 
+@mark.xfail
 def test_empty_events_issue_81(config_tmpdir, ICDATADIR, s12params):
     # NB: explicit PATH_OUT
     PATH_IN  = os.path.join(ICDATADIR    , 'irene_bug_Kr_ACTIVE_7bar_RWF.h5')
