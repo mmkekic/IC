@@ -53,7 +53,7 @@ def create_xyz_function(H    : np.ndarray,
     return function
 
 def create_xy_function(H    : np.ndarray,
-                       bins : list)->Callable::
+                       bins : list)->Callable:
     """Given a 2D array and a list of bins for
     each dim, it returns a x,y,z function
 
