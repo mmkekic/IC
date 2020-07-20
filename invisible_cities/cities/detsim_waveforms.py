@@ -1,5 +1,5 @@
 import numpy as np
-
+import scipy
 from typing import Callable
 
 from invisible_cities.core.core_functions import in_range
@@ -33,11 +33,14 @@ def create_waveform(times    : np.ndarray,
         :wf: np.ndarray
             waveform
     """
+    if isinstance(pes, scipy.sparse.csr.csr_matrix):
+        pes = np.squeeze(pes.toarray())
+
     if (nsamples<1) or (nsamples>len(bins)):
         raise ValueError("nsamples must lay betwen 1 and len(bins) (inclusive)")
 
     wf = np.zeros(len(bins)-1 + nsamples-1)
-    if np.sum(pes)==0:
+    if np.sum(pes.data)==0:
         return wf[:len(bins)-1]
 
     t = np.repeat(times, pes)

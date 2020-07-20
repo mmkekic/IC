@@ -5,6 +5,7 @@ from typing import Callable
 from scipy.stats import rv_continuous
 
 
+from scipy.sparse import csr_matrix
 ##################################
 ############## PES ###############
 ##################################
@@ -91,10 +92,11 @@ def pes_at_sipms(PSF        : Callable,
 
     psf = PSF(distances.T)
     nsensors, nhits, npartitions = psf.shape
-    psf = np.reshape(psf, (nsensors, nhits*npartitions))
+    psf = csr_matrix(np.reshape(psf, (nsensors, nhits*npartitions)))
+    pes = csr_matrix(np.repeat(photons, npartitions))
 
-    pes = np.multiply(psf, np.repeat(photons, npartitions))
-    pes = np.random.poisson(pes/npartitions)
+    pes = psf.multiply(pes)
+    pes.data = np.random.poisson(pes.data/npartitions)
     return pes, sipmids
 
 
