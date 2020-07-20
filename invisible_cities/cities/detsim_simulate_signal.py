@@ -13,7 +13,6 @@ def pes_at_pmts(LT      : Callable  ,
                 xs      : np.ndarray,
                 ys      : np.ndarray,
                 zs      : np.ndarray = None):
-
     """Compute the pes generated in each PMT from photons generated at some point
 
     Parameters:
@@ -44,6 +43,29 @@ def pes_at_sipms(PSF        : Callable,
                  photons    : np.ndarray,
                  xs         : np.ndarray,
                  ys         : np.ndarray):
+    """Compute the pes generated in each framed SIPM from photons generated at some point
+
+    Parameters:
+        :PSF: function
+            The PSF in functional form
+        :datasipm: pd.Dataframe
+            sipm data from database (load_db.DataSiPM)
+        :sipm_frame: float
+            just SIPMs inside a square between ((xmin, ymin)-sipm_frame, (xmax, ymax)+sipm_frame) will
+            be considered. Recomended value is the PSF maximum distance, but it can be lower if PSF
+            maximum distance is irrelevantly large.
+        :photons: np.ndarray
+            The photons generated at each hit (in the active volume
+            for the S1 and in the EL for S2)
+        :xs, ys, zs: np.ndarray
+            hit position (zs=None for S2)
+    Returns:
+        :pes: np.ndarray
+            photoelectrons at framed SIPM produced by each hit.
+            Shape is (nsensors, nhits)
+        :sipm_ids: np.ndarray
+            SIPM ids (from database indexes) of considered SIPMs
+    """
 
     xsensors, ysensors = datasipm["X"].values, datasipm["Y"].values
 
