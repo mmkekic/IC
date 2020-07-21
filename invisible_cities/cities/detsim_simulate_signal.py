@@ -1,11 +1,11 @@
 import numpy as np
+import numexpr as ne
 
 from typing import Callable
 
-from scipy.stats import rv_continuous
-
-
+from scipy.stats  import rv_continuous
 from scipy.sparse import csr_matrix
+
 ##################################
 ############## PES ###############
 ##################################
@@ -31,7 +31,6 @@ def pes_at_pmts(LT      : Callable  ,
     """
     if np.any(zs): #S1
         pes = photons[:, np.newaxis] * LT(xs, ys, zs)
-        # pes = np.random.poisson(pes)
     else:          #S2
         pes = photons[:, np.newaxis] * LT(xs, ys)
     pes = np.random.poisson(pes)
@@ -67,7 +66,6 @@ def pes_at_sipms(PSF        : Callable,
         :sipm_ids: np.ndarray
             SIPM ids (from database indexes) of considered SIPMs
     """
-
     xsensors, ysensors = datasipm["X"].values, datasipm["Y"].values
 
     ######### TP FRAMING #############
@@ -88,7 +86,8 @@ def pes_at_sipms(PSF        : Callable,
     ########## PES at SIPMS###############
     xdistance = xs[:, np.newaxis] - xsensors
     ydistance = ys[:, np.newaxis] - ysensors
-    distances = (xdistance**2 + ydistance**2)**0.5
+    # distances = (xdistance**2 + ydistance**2)**0.5
+    distances = ne.evaluate("(xdistance**2 + ydistance**2)**0.5")
 
     psf = PSF(distances.T)
     nsensors, nhits, npartitions = psf.shape
@@ -132,29 +131,3 @@ def generate_S1_times_from_pes(S1pes_at_pmts:np.ndarray)->list:
     S1pes_pmt = np.sum(S1pes_at_pmts, axis=1)
     S1times = [generate_S1_time.rvs(size=pes) for pes in S1pes_pmt]
     return S1times
-
-# def pes_at_sensors(xs         : np.ndarray,
-#                    ys         : np.ndarray,
-#                    photons    : np.ndarray,
-#                    zs         : np.ndarray = None,
-#                    LT         : Callable   = None,
-#                    psf        : Callable   = None,
-#                    x_sensors  : np.ndarray = None,
-#                    y_sensors  : np.ndarray = None,
-#                    z_sensors  : np.ndarray = None) -> np.ndarray:
-#     """compute the pes that reach each sensor, based on
-#     the sensor psf"""
-#
-#     if psf:
-#         dxs = xs[:, np.newaxis] - x_sensors
-#         dys = ys[:, np.newaxis] - y_sensors
-#
-#         pes = photons[:, np.newaxis] * psf(dxs, dys)
-#         pes = np.random.poisson(pes)
-#     elif LT:
-#         if np.any(zs):
-#             pes = photons[:, np.newaxis] * LT(xs, ys, zs)
-#         else:
-#             pes = photons[:, np.newaxis] * LT(xs, ys)
-#         pes = np.random.poisson(pes)
-#     return pes.T

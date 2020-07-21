@@ -146,7 +146,7 @@ def get_psf(filename : str)->Callable:
     PSF = np.array(PSF.tolist())[:, 1:]
 
     def psf(d):
-        out = np.zeros((*d.shape, PSF.shape[1]))
+        out = np.zeros((*d.shape, PSF.shape[1]), dtype="float32")
         sel = in_range(d, bins[0], bins[-1])
         idxs = np.digitize(d[sel], bins)-1
         out[sel] = PSF[idxs]

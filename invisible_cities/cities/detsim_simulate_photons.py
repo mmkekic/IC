@@ -2,7 +2,6 @@ import numpy  as np
 
 from typing import Callable
 
-
 #######################################
 ########## PHOTON SIMULATION ##########
 #######################################
@@ -36,8 +35,7 @@ def generate_s2_photons(el_gain        : float,
         :nes: np.ndarray
             number of ionization electrons at arriving at some EL X,Y position.
     Returns:
-        :nphs: np.ndarray
+        :: np.ndarray
             s2 photons electrons at the EL
     """
-    nphs = np.random.normal(el_gain*nes, np.sqrt(el_gain_sigma**2*nes))
-    return nphs
+    return np.random.normal(el_gain*nes, np.sqrt(el_gain_sigma**2*nes))
