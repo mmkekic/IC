@@ -1,6 +1,7 @@
 import numpy as np
 import numexpr as ne
 
+from typing import Tuple
 from typing import Callable
 
 from scipy.stats  import rv_continuous
@@ -13,7 +14,7 @@ def pes_at_pmts(LT      : Callable  ,
                 photons : np.ndarray,
                 xs      : np.ndarray,
                 ys      : np.ndarray,
-                zs      : np.ndarray = None):
+                zs      : np.ndarray = None)->np.ndarray:
     """Compute the pes generated in each PMT from photons generated at some point
 
     Parameters:
@@ -42,7 +43,7 @@ def pes_at_sipms(PSF        : Callable,
                  sipm_frame : float,
                  photons    : np.ndarray,
                  xs         : np.ndarray,
-                 ys         : np.ndarray):
+                 ys         : np.ndarray)->Tuple[csr_matrix, np.ndarray]:
     """Compute the pes generated in each framed SIPM from photons generated at some point
 
     Parameters:
