@@ -2,7 +2,6 @@ import numpy as np
 
 from typing import List
 from typing import Tuple
-from typing import Callable
 
 from invisible_cities.cities.detsim_get_psf import binedges_from_bincenters
 
