@@ -1,14 +1,10 @@
 import numpy  as np
 import tables as tb
-import pandas as pd
 
-from typing import Tuple
 from typing import Callable
 
 from invisible_cities.reco.corrections     import read_maps
-
 from invisible_cities.core.core_functions  import in_range
-
 
 ###################################
 ############# UTILS ###############
