@@ -36,7 +36,7 @@ from invisible_cities.cities.detsim_get_psf            import get_ligthtables
 
 def get_derived_parameters(detector_db, run_number,
                            s1_ligthtable, s2_ligthtable, sipm_psf,
-                           el_gain, conde_policarpo_factor, EL_dz, drift_velocity_EL,
+                           el_gain, conde_policarpo_factor, drift_velocity_EL,
                            wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width):
     ########################
     ######## Globals #######
@@ -64,7 +64,7 @@ def get_derived_parameters(detector_db, run_number,
 @city
 def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtable, s2_ligthtable, sipm_psf,
            ws, wi, fano_factor, drift_velocity, lifetime, transverse_diffusion, longitudinal_diffusion,
-           el_gain, conde_policarpo_factor, EL_dz, drift_velocity_EL, voxel_size, sipm_frame,
+           el_gain, conde_policarpo_factor, drift_velocity_EL,
            pretrigger, wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width,
            print_mod, compression):
 
@@ -76,7 +76,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
     el_pitch, n_el_partitions, n_time_bins, el_gain_sigma,\
     s2_pmt_nsamples, s2_sipm_nsamples = get_derived_parameters(detector_db, run_number,
                                                                s1_ligthtable, s2_ligthtable, sipm_psf,
-                                                               el_gain, conde_policarpo_factor, EL_dz, drift_velocity_EL,
+                                                               el_gain, conde_policarpo_factor, drift_velocity_EL,
                                                                wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width)
     xsipms, ysipms = datasipm["X"].values, datasipm["Y"].values
     nsipms = len(datasipm)
