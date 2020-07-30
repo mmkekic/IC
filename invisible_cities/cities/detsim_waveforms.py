@@ -33,9 +33,6 @@ def create_waveform(times    : np.ndarray,
         :wf: np.ndarray
             waveform
     """
-    if isinstance(pes, scipy.sparse.csr.csr_matrix):
-        pes = np.squeeze(pes.toarray())
-
     if (nsamples<1) or (nsamples>len(bins)):
         raise ValueError("nsamples must lay betwen 1 and len(bins) (inclusive)")
 
@@ -57,38 +54,9 @@ def create_waveform(times    : np.ndarray,
     return wf[:len(bins)-1]
 
 
-# from fast_histogram import histogram1d
-# def create_waveform(times    : np.ndarray,
-#                     pes      : np.ndarray,
-#                     bins     : np.ndarray,
-#                     nsamples : int) -> np.ndarray:
-#
-#     if (nsamples<1) or (nsamples>len(bins)):
-#         raise ValueError("nsamples must lay betwen 1 and len(bins) (inclusive)")
-#
-#     wf = np.zeros(len(bins)-1 + nsamples-1)
-#     if np.sum(pes)==0:
-#         return wf[:len(bins)-1]
-#
-#     if nsamples == 1:
-#         wf = histogram1d(times, len(bins)-1, (bins[0], bins[-1]), weights=pes)
-#         return np.random.poisson(wf)
-#
-#     ### DISTRIBUTED WAVEFORM IN NSAMPLES
-#     wf = np.zeros(len(bins)-1 + nsamples-1)
-#
-#     sel = in_range(times, bins[0], bins[-1])
-#     indexes = np.digitize(times[sel], bins) - 1
-#
-#     for index, count in zip(indexes, pes[sel]):
-#         wf[index:index+nsamples] += count/nsamples
-#
-#     return np.random.poisson(wf[:len(bins)-1])
-
-
-def create_sensor_waveforms(signal_type   : str,
-                            buffer_length : float,
-                            bin_width     : float) -> Callable:
+def create_pmt_waveforms(signal_type   : str,
+                         buffer_length : float,
+                         bin_width     : float) -> Callable:
     """
     This function calls recursively to create_waveform. See create_waveform for
     an explanation of the arguments not explained below.
@@ -108,29 +76,66 @@ def create_sensor_waveforms(signal_type   : str,
 
     if signal_type=="S1":
 
-        def create_sensor_waveforms_(S1times : list):
+        def create_pmt_waveforms_(S1times : list):
             wfs = np.stack([np.histogram(times, bins=bins)[0] for times in S1times])
             return wfs
 
     elif signal_type=="S2":
 
-        def create_sensor_waveforms_(nsamples       : int,
-                                     times          : np.ndarray,
-                                     pes_at_sensors : np.ndarray):
+        def create_pmt_waveforms_(times          : np.ndarray,
+                                  pes_at_sensors : np.ndarray,
+                                  nsamples       : int = 1):
             wfs = np.stack([create_waveform(times, pes, bins, nsamples) for pes in pes_at_sensors])
             return wfs
     else:
         ValueError("signal_type must be one of S1 or S1")
 
-    return create_sensor_waveforms_
+    return create_pmt_waveforms_
 
 
-def add_empty_sipmwfs(shape   : tuple,
-                      sipmwfs : np.ndarray,
-                      sipmids : np.ndarray):
-    """
-    Add empty SIPMs waveforms.
-    """
-    allwfs = np.zeros(shape)
-    allwfs[sipmids] = sipmwfs
-    return allwfs
+def create_sipm_waveforms(wf_buffer_length  : float,
+                          wf_sipm_bin_width : float,
+                          nsipms      : int,
+                          n_time_bins : int,
+                          nsamples    : int,
+                          xsipms : np.ndarray,
+                          ysipms : np.ndarray,
+                          psf):
+
+    ntimebins = int(wf_buffer_length/wf_sipm_bin_width)
+    sipm_time_bins = np.arange(0, wf_buffer_length, wf_sipm_bin_width)
+
+    def create_sipm_waveforms_(times,
+                               photons,
+                               dx,
+                               dy):
+        ##### Create waveforms #####
+        sipmwfs = np.zeros((nsipms, ntimebins))
+
+        for hx, hy, ht, hph in zip(dx, dy, times, photons):
+            distances = ((hx-xsipms)**2 + (hy-ysipms)**2)**0.5
+            tindex = np.digitize(ht, sipm_time_bins)-1
+            sipmwfs[:, tindex:tindex+n_time_bins] += psf(distances)*hph
+
+        sipmwfs = np.random.poisson(sipmwfs)
+        ###############
+
+        ### Spread in nsamples ####
+        if nsamples>1:
+            wfs = np.zeros((sipmwfs.shape[0], sipmwfs.shape[1]+nsamples-1), dtype=int)
+            i_sample = np.arange(nsamples)
+
+            for wf, sipmwf in zip(wfs, sipmwfs):
+                sel = sipmwf>0
+                indexes, counts = np.argwhere(sel).flatten(), sipmwf[sel]
+
+                for index, c in zip(indexes, counts):
+                    idxs = np.random.choice(i_sample, size=c)
+                    idx, sp = np.unique(idxs, return_counts=True)
+                    wf[index + idx] += sp
+            sipmwfs = wfs[:, :-nsamples+1]
+        ################
+
+        return sipmwfs
+
+    return create_sipm_waveforms_
