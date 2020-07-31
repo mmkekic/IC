@@ -168,6 +168,6 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
                                        create_pmt_waveforms,
                                        create_sipm_waveforms,
                                        fl.fork(write_pmtwfs,
-                                               # write_sipmwfs,
+                                               write_sipmwfs,
                                                write_run_event)),
                         result = ())
