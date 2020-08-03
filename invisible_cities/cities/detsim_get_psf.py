@@ -144,7 +144,7 @@ def get_psf(filename : str,
 
     splitted_PSF = np.split(PSF, indexes[1:], axis=1)
 
-    effective_PSF = [np.sum(cols, axis=1, keepdims=True)*(cols.shape[-1]/npartitions) for cols in splitted_PSF]
+    effective_PSF = [np.sum(cols, axis=1, keepdims=True)*(1/npartitions) for cols in splitted_PSF]
     effective_PSF  = np.hstack(effective_PSF)
 
     def get_psf_values(distances):
