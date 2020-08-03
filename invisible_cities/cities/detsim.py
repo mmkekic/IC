@@ -46,7 +46,7 @@ def get_derived_parameters(detector_db, run_number,
 
     S1_LT = get_ligthtables(s1_ligthtable, "S1")
     S2_LT = get_ligthtables(s2_ligthtable, "S2")
-    PSF, info = get_psf(sipm_psf)
+    PSF, info = get_psf(sipm_psf, drift_velocity_EL=drift_velocity_EL, wf_sipm_bin_width=wf_sipm_bin_width)
     EL_dz, el_pitch, n_el_partitions, n_time_bins = info
 
     el_gain_sigma = np.sqrt(el_gain * conde_policarpo_factor)
