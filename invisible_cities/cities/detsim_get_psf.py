@@ -129,7 +129,7 @@ def get_psf(filename : str,
     PSF    = pd.read_hdf(filename, "/LightTable")
     Config = pd.read_hdf(filename, "/Config")
     EL_dz = float(Config.loc["EL_GAP"])        * units.mm
-    pitch = float(Config.loc["pitch_x"].value) * units.mm
+    pitch = float(Config.loc["pitch_z"].value) * units.mm
     npartitions = int(EL_dz/pitch)
 
     distance_bins    = np.sort(PSF.index.values)
