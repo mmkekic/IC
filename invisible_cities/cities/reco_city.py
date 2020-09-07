@@ -67,7 +67,7 @@ class CVXOPTQPSolver(object):
 def hitsdf_and_kdst_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.DataFrame, pd.DataFrame, MCInfo, int, float]]]:
     for path in paths:
         try:
-            hits_df = load_dst (path, 'RECO', 'Events')
+#            hits_df = load_dst (path, 'RECO', 'Events')
             kdst_df = load_dst (path, 'DST' , 'Events')
         except tb.exceptions.NoSuchNodeError:
             continue
@@ -76,20 +76,23 @@ def hitsdf_and_kdst_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.D
             try:
                 run_number  = get_run_number(h5in)
                 event_info  = get_event_info(h5in)
+                hits_table  = h5in.root.RECO.Events
             except (tb.exceptions.NoSuchNodeError, IndexError):
                 continue
 
-            check_lengths(event_info, hits_df.event.unique())
+            #check_lengths(event_info, hits_df.event.unique())
 
             for evtinfo in event_info:
                 event_number, timestamp = evtinfo.fetch_all_fields()
-                hits = hits_df.loc[hits_df.event == event_number]
-                yield dict(hits = hits,
-                           kdst = kdst_df.loc[kdst_df.event==event_number],
-                           run_number = run_number,
-                           event_number = event_number,
-                           timestamp = timestamp)
-
+                hits = pd.DataFrame.from_records(hits_table.read_where( 'event == {}'.format(event_number)))
+                if len(hits)>0:
+                    yield dict(hits = hits,
+                               kdst = kdst_df.loc[kdst_df.event==event_number],
+                               run_number = run_number,
+                               event_number = event_number,
+                               timestamp = timestamp)
+                else:
+                    continue
 
 def sipm_indx_getter(sipm_df):
     lookup_map = dict(((row[1].X, row[1].Y), row[0]) for row in sipm_df.iterrows())
@@ -178,7 +181,7 @@ def hits_reconstructor (*, psf_name, sipm_db, Zmax, Zmin, Xmin, Xmax, Ymax, Ymin
                                                'E':res[mask_pos]*E_full/sum(res), 'E_cut':res[mask_pos]*E_part/sum(res),
                                                'Q':res[mask_pos]*Q_full/sum(res), 'Q_cut':res[mask_pos]*Q_part/sum(res),
                                                'residual':residual, 'reconstructed':True})
-                    reco_hits = reco_hits.append(hits_slice, sort=True)
+                reco_hits = reco_hits.append(hits_slice, sort=True)
             reco_hits = reco_hits.apply(lambda x : x.astype(types_dict_hits[x.name]))
             return reco_hits
         except Exception as e:
