@@ -1,12 +1,14 @@
 import numpy as np
 import scipy
 from typing import Callable
-
-from invisible_cities.core.core_functions import in_range
-
+import pandas as pd
+import line_profiler
+from ..core.core_functions import in_range
+from ..detsim.detsim_loop  import electron_loop
 ##################################
 ######### WAVEFORMS ##############
 ##################################
+
 def create_waveform(times    : np.ndarray,
                     pes      : np.ndarray,
                     bins     : np.ndarray,
@@ -95,47 +97,26 @@ def create_pmt_waveforms(signal_type   : str,
 
 def create_sipm_waveforms(wf_buffer_length  : float,
                           wf_sipm_bin_width : float,
-                          nsipms      : int,
-                          n_time_bins : int,
-                          nsamples    : int,
-                          xsipms : np.ndarray,
-                          ysipms : np.ndarray,
-                          psf):
+                          datasipm : pd.DataFrame,
+                          PSF : pd.DataFrame,
+                          EL_dz : float,
+                          el_pitch : float,
+                          drift_velocity_EL : float):
+    ELtimes = np.arange(el_pitch/2., EL_dz, el_pitch)/drift_velocity_EL
 
-    ntimebins = int(wf_buffer_length/wf_sipm_bin_width)
-    sipm_time_bins = np.arange(0, wf_buffer_length, wf_sipm_bin_width)
+    xsipms, ysipms = datasipm["X"].values, datasipm["Y"].values
+    PSF_distances = PSF.index.values
+    PSF_values = PSF.values
 
     def create_sipm_waveforms_(times,
                                photons,
                                dx,
                                dy):
-        ##### Create waveforms #####
-        sipmwfs = np.zeros((nsipms, ntimebins))
-
-        for hx, hy, ht, hph in zip(dx, dy, times, photons):
-            distances = ((hx-xsipms)**2 + (hy-ysipms)**2)**0.5
-            tindex = np.digitize(ht, sipm_time_bins)-1
-            sipmwfs[:, tindex:tindex+n_time_bins] += psf(distances)*hph
-
+        waveform_nbins = wf_buffer_length//wf_sipm_bin_width
+        sipmwfs =  electron_loop(dx.astype(np.float64), dy.astype(np.float64), times.astype(np.float64), photons.astype(np.uint),
+                                 xsipms.astype(np.float64), ysipms.astype(np.float64), PSF_values.astype(np.float64), PSF_distances.astype(np.float64),
+                                 ELtimes.astype(np.float64), wf_sipm_bin_width, waveform_nbins)
         sipmwfs = np.random.poisson(sipmwfs)
-        ###############
-
-        ### Spread in nsamples ####
-        if nsamples>1:
-            wfs = np.zeros((sipmwfs.shape[0], sipmwfs.shape[1]+nsamples-1), dtype=int)
-            i_sample = np.arange(nsamples)
-
-            for wf, sipmwf in zip(wfs, sipmwfs):
-                sel = sipmwf>0
-                indexes, counts = np.argwhere(sel).flatten(), sipmwf[sel]
-
-                for index, c in zip(indexes, counts):
-                    idxs = np.random.choice(i_sample, size=c)
-                    idx, sp = np.unique(idxs, return_counts=True)
-                    wf[index + idx] += sp
-            sipmwfs = wfs[:, :-nsamples+1]
-        ################
-
         return sipmwfs
 
     return create_sipm_waveforms_

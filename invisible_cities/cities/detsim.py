@@ -30,7 +30,6 @@ from invisible_cities.cities.detsim_simulate_signal    import generate_S1_times_
 from invisible_cities.cities.detsim_waveforms          import create_pmt_waveforms          as create_pmt_waveforms_
 from invisible_cities.cities.detsim_waveforms          import create_sipm_waveforms         as create_sipm_waveforms_
 
-from invisible_cities.cities.detsim_get_psf            import get_psf
 from invisible_cities.cities.detsim_get_psf            import get_ligthtables
 
 
@@ -46,19 +45,22 @@ def get_derived_parameters(detector_db, run_number,
 
     S1_LT = get_ligthtables(s1_ligthtable, "S1")
     S2_LT = get_ligthtables(s2_ligthtable, "S2")
-    PSF, info = get_psf(sipm_psf, drift_velocity_EL=drift_velocity_EL, wf_sipm_bin_width=wf_sipm_bin_width)
-    EL_dz, el_pitch, n_el_partitions, n_time_bins = info
-
+    PSF    = pd.read_hdf(sipm_psf, "/LightTable")
+    Config = pd.read_hdf(sipm_psf, "/Config")
+    EL_dz    = float(Config.loc["EL_GAP"])        * units.mm
+    el_pitch = float(Config.loc["pitch_z"].value) * units.mm
     el_gain_sigma = np.sqrt(el_gain * conde_policarpo_factor)
 
     EL_dtime      =  EL_dz / drift_velocity_EL
     s2_pmt_nsamples  = np.max((int(EL_dtime // wf_pmt_bin_width ), 1))
     s2_sipm_nsamples = np.max((int(el_pitch // wf_sipm_bin_width), 1))
 
+
     return datapmt, datasipm,\
-           S1_LT, S2_LT, PSF,\
-           el_pitch, n_el_partitions, n_time_bins, el_gain_sigma,\
-           s2_pmt_nsamples, s2_sipm_nsamples
+        S1_LT, S2_LT, PSF,\
+        el_pitch, EL_dz, el_gain_sigma,\
+        s2_pmt_nsamples
+
 
 
 @city
@@ -73,15 +75,14 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
     ########################
     datapmt, datasipm,\
     S1_LT, S2_LT, PSF,\
-    el_pitch, n_el_partitions, n_time_bins, el_gain_sigma,\
-    s2_pmt_nsamples, s2_sipm_nsamples = get_derived_parameters(detector_db, run_number,
-                                                               s1_ligthtable, s2_ligthtable, sipm_psf,
-                                                               el_gain, conde_policarpo_factor, drift_velocity_EL,
-                                                               wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width)
-    xsipms, ysipms = datasipm["X"].values, datasipm["Y"].values
-    nsipms = len(datasipm)
-    npmts  = len(datapmt)
+    el_pitch, EL_dz, el_gain_sigma,\
+    s2_pmt_nsamples  = get_derived_parameters(detector_db, run_number,
+                                              s1_ligthtable, s2_ligthtable, sipm_psf,
+                                              el_gain, conde_policarpo_factor, drift_velocity_EL,
+                                              wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width)
 
+    npmts  = len(datapmt)
+    nsipms = len(datasipm)
     ##########################################
     ############ SIMULATE ELECTRONS ##########
     ##########################################
@@ -142,7 +143,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
     create_pmt_waveforms = fl.pipe(create_pmt_S1_waveforms, create_pmt_S2_waveforms, add_pmtwfs)
 
     #### SIPMs ####
-    create_sipm_waveforms = create_sipm_waveforms_(wf_buffer_length, wf_sipm_bin_width, nsipms, n_time_bins, s2_sipm_nsamples, xsipms, ysipms, PSF)
+    create_sipm_waveforms = create_sipm_waveforms_(wf_buffer_length, wf_sipm_bin_width, datasipm, PSF, EL_dz, el_pitch, drift_velocity_EL)
     create_sipm_waveforms = fl.map(create_sipm_waveforms, args=("S2buffertimes", "S2photons", "dx", "dy"), out=("sipmwfs"))
 
 

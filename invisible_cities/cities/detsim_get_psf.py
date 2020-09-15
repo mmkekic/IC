@@ -110,56 +110,6 @@ def binedges_from_bincenters(bincenters: np.ndarray)->np.ndarray:
     return binedges
 
 ##################################
-############# PSF ################
-##################################
-def get_psf(filename : str,
-            drift_velocity_EL : float = 2.5,
-            wf_sipm_bin_width : float = 100):
-    """
-    From PSF filename, returns a function of distance to SIPMs
-
-    Parameters:
-        :filename: str
-            path to the PSF h5 file
-    Returns:
-        :get_psf_values: function
-
-        :info:
-    """
-    PSF    = pd.read_hdf(filename, "/LightTable")
-    Config = pd.read_hdf(filename, "/Config")
-    EL_dz = float(Config.loc["EL_GAP"])        * units.mm
-    pitch = float(Config.loc["pitch_z"].value) * units.mm
-    npartitions = int(EL_dz/pitch)
-
-    distance_bins    = np.sort(PSF.index.values)
-    psf_max_distance = np.max(distance_bins)
-    PSF = PSF.values
-    ELtimes = np.arange(pitch/2., EL_dz, pitch)/drift_velocity_EL
-
-    ELtimepartitions_bins = np.arange(0, ELtimes[-1] + wf_sipm_bin_width, wf_sipm_bin_width)
-    n_time_bins = len(ELtimepartitions_bins)-1
-    indexes    = np.digitize(ELtimes, ELtimepartitions_bins)-1
-    _, indexes = np.unique(indexes, return_index=True)
-
-    splitted_PSF = np.split(PSF, indexes[1:], axis=1)
-
-    effective_PSF = [np.sum(cols, axis=1, keepdims=True)*(1/npartitions) for cols in splitted_PSF]
-    effective_PSF  = np.hstack(effective_PSF)
-
-    def get_psf_values(distances):
-        psf = np.zeros((len(distances), n_time_bins))
-        sel = distances<=psf_max_distance
-        indexes  = np.digitize(distances[sel], distance_bins)-1
-        psf[sel] = effective_PSF[indexes]
-        return psf
-
-    info = (EL_dz, pitch, npartitions, n_time_bins)
-    return get_psf_values, info
-
-
-
-##################################
 ######### LIGTH TABLE ############
 ##################################
 def get_ligthtables(filename: str,
