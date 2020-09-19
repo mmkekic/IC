@@ -1,42 +1,55 @@
+# cython: linetrace=True
+# cython: profile=True
+cimport psf_functions
+from .psf_functions cimport PSF
 import numpy as np
+import pandas as pd
+
 cimport numpy as np
 from libc.math cimport sqrt, round, ceil, floor
 cimport cython
 
 
-#@cython.boundscheck(False)
-#@cython.wraparound(False)
-def electron_loop(np.ndarray[double, ndim=1] dx,
-                  np.ndarray[double, ndim=1] dy,
-                  np.ndarray[double, ndim=1] times,
-                  np.ndarray[unsigned long, ndim=1] photons,
-                  np.ndarray[double, ndim=1] xsipms,
-                  np.ndarray[double, ndim=1] ysipms,
-                  np.ndarray[double, ndim=2] PSF,
-                  np.ndarray[double, ndim=1] distance_centers,
-                  np.ndarray[double, ndim=1] EL_times,
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def electron_loop(double [:] xs,
+                  double [:] ys,
+                  double [:] ts,
+                  np.ndarray[unsigned long, ndim=1] phs,
+                  PSF PSF,
+                  double EL_drift_velocity,
                   double sipm_time_bin,
-                  int len_sipm_time_bins
-):
-    cdef int nsipms = xsipms.shape[0]
-    cdef np.ndarray[double, ndim=2] sipmwfs = np.zeros([nsipms, len_sipm_time_bins], dtype=np.float64)
-    cdef int numel = dx.shape[0]
-    cdef int npartitions = PSF.shape[1]
-    cdef double EL_bin = distance_centers[1]-distance_centers[0]
-    cdef double max_dist = max(distance_centers)
-    cdef int sipmwf_timeindx
-    cdef double ts
-    cdef int psf_bin
-    cdef double signal
-    for sipmindx in range(nsipms):
-        for elindx in range(numel):
-            dist = sqrt((dx[elindx]-xsipms[sipmindx])**2+(dy[elindx]-ysipms[sipmindx])**2)
-            if dist>max_dist:
-                continue
-            for partindx in range(npartitions):     
-                ts = times[elindx] + EL_times[partindx]
-                psf_bin = <int> floor(dist/EL_bin)
-                signal = PSF[psf_bin, partindx]/npartitions*photons[elindx]
-                sipmwf_timeindx = <int> floor(ts/sipm_time_bin)
-                sipmwfs[sipmindx,sipmwf_timeindx] += signal
+                  int num_bins):
+                  
+    cdef:
+        long [:] sipms_ids = PSF.get_sipm_ids()  
+        int nsipms = sipms_ids.shape[0]
+        double [:] zs = PSF.get_z_bins()
+        np.ndarray[double, ndim=2] sipmwfs = np.zeros([nsipms, num_bins], dtype=np.float64)
+        double[:] psf_factors 
+        size_t indx_sipm
+        size_t indx_el
+        size_t indx_z
+        double signal
+        double time
+        size_t indx_time
+        double [:] EL_times_
+    #lets create vector of EL_times
+    num_zs = np.copy(zs)
+    zs_bs = num_zs[1]-num_zs[0]
+    EL_times = (num_zs+zs_bs/2.)/EL_drift_velocity
+    EL_times_ = EL_times.astype(np.float64)
+    
+    for indx_sipm in range(sipms_ids.shape[0]):
+        for indx_el in range(ts.shape[0]):
+            if PSF.is_significant(xs[indx_el], ys[indx_el], sipms_ids[indx_sipm])>0:
+                psf_factors = PSF.get_values(xs[indx_el], ys[indx_el], sipms_ids[indx_sipm])
+                for indx_z in range(zs.shape[0]):
+                    time = ts[indx_el]+EL_times_[indx_z]
+                    
+                    indx_time = <int> floor(time/sipm_time_bin)
+                    if indx_time>=num_bins:
+                        continue
+                    signal = psf_factors[indx_z] * phs[indx_el]
+                    sipmwfs[indx_sipm, indx_time] += signal
     return sipmwfs

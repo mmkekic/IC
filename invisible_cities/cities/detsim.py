@@ -32,7 +32,7 @@ from invisible_cities.cities.detsim_waveforms          import create_sipm_wavefo
 
 from invisible_cities.cities.detsim_get_psf            import get_ligthtables
 
-
+from invisible_cities.detsim.psf_functions import PSF_distance 
 def get_derived_parameters(detector_db, run_number,
                            s1_ligthtable, s2_ligthtable, sipm_psf,
                            el_gain, conde_policarpo_factor, drift_velocity_EL,
@@ -45,20 +45,19 @@ def get_derived_parameters(detector_db, run_number,
 
     S1_LT = get_ligthtables(s1_ligthtable, "S1")
     S2_LT = get_ligthtables(s2_ligthtable, "S2")
-    PSF    = pd.read_hdf(sipm_psf, "/LightTable")
-    Config = pd.read_hdf(sipm_psf, "/Config")
-    EL_dz    = float(Config.loc["EL_GAP"])        * units.mm
-    el_pitch = float(Config.loc["pitch_z"].value) * units.mm
+    psf = PSF_distance(datasipm, sipm_psf)
+
+    EL_dz = psf.EL_z
     el_gain_sigma = np.sqrt(el_gain * conde_policarpo_factor)
 
     EL_dtime      =  EL_dz / drift_velocity_EL
     s2_pmt_nsamples  = np.max((int(EL_dtime // wf_pmt_bin_width ), 1))
-    s2_sipm_nsamples = np.max((int(el_pitch // wf_sipm_bin_width), 1))
+    
 
 
     return datapmt, datasipm,\
-        S1_LT, S2_LT, PSF,\
-        el_pitch, EL_dz, el_gain_sigma,\
+        S1_LT, S2_LT, psf,\
+        EL_dz, el_gain_sigma,\
         s2_pmt_nsamples
 
 
@@ -74,8 +73,8 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
     ######## Globals #######
     ########################
     datapmt, datasipm,\
-    S1_LT, S2_LT, PSF,\
-    el_pitch, EL_dz, el_gain_sigma,\
+    S1_LT, S2_LT, psf,\
+    EL_dz, el_gain_sigma,\
     s2_pmt_nsamples  = get_derived_parameters(detector_db, run_number,
                                               s1_ligthtable, s2_ligthtable, sipm_psf,
                                               el_gain, conde_policarpo_factor, drift_velocity_EL,
@@ -143,7 +142,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_ligthtab
     create_pmt_waveforms = fl.pipe(create_pmt_S1_waveforms, create_pmt_S2_waveforms, add_pmtwfs)
 
     #### SIPMs ####
-    create_sipm_waveforms = create_sipm_waveforms_(wf_buffer_length, wf_sipm_bin_width, datasipm, PSF, EL_dz, el_pitch, drift_velocity_EL)
+    create_sipm_waveforms = create_sipm_waveforms_(wf_buffer_length, wf_sipm_bin_width, datasipm, psf, drift_velocity_EL)
     create_sipm_waveforms = fl.map(create_sipm_waveforms, args=("S2buffertimes", "S2photons", "dx", "dy"), out=("sipmwfs"))
 
 

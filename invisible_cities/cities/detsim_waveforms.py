@@ -94,28 +94,23 @@ def create_pmt_waveforms(signal_type   : str,
 
     return create_pmt_waveforms_
 
+import line_profiler
+import atexit
+profile = line_profiler.LineProfiler()
+atexit.register(profile.print_stats)
 
 def create_sipm_waveforms(wf_buffer_length  : float,
                           wf_sipm_bin_width : float,
                           datasipm : pd.DataFrame,
-                          PSF : pd.DataFrame,
-                          EL_dz : float,
-                          el_pitch : float,
+                          psf,
                           drift_velocity_EL : float):
-    ELtimes = np.arange(el_pitch/2., EL_dz, el_pitch)/drift_velocity_EL
-
-    xsipms, ysipms = datasipm["X"].values, datasipm["Y"].values
-    PSF_distances = PSF.index.values
-    PSF_values = PSF.values
-
+    nlen = wf_buffer_length//wf_sipm_bin_width
+    @profile
     def create_sipm_waveforms_(times,
                                photons,
                                dx,
                                dy):
-        waveform_nbins = wf_buffer_length//wf_sipm_bin_width
-        sipmwfs =  electron_loop(dx.astype(np.float64), dy.astype(np.float64), times.astype(np.float64), photons.astype(np.uint),
-                                 xsipms.astype(np.float64), ysipms.astype(np.float64), PSF_values.astype(np.float64), PSF_distances.astype(np.float64),
-                                 ELtimes.astype(np.float64), wf_sipm_bin_width, waveform_nbins)
+        sipmwfs = electron_loop(dx, dy, times, photons.astype(np.uint),  psf, drift_velocity_EL, wf_sipm_bin_width, nlen)
         sipmwfs = np.random.poisson(sipmwfs)
         return sipmwfs
 
