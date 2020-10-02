@@ -102,7 +102,7 @@ def create_sipm_waveforms(wf_buffer_length  : float,
                           EL_dz : float,
                           el_pitch : float,
                           drift_velocity_EL : float):
-    ELtimes = np.arange(el_pitch/2., EL_dz, el_pitch)/drift_velocity_EL
+    EL_times = np.arange(el_pitch/2., EL_dz, el_pitch)/drift_velocity_EL
 
     xsipms, ysipms = datasipm["X"].values, datasipm["Y"].values
     PSF_distances = PSF.index.values
@@ -112,11 +112,37 @@ def create_sipm_waveforms(wf_buffer_length  : float,
                                photons,
                                dx,
                                dy):
-        waveform_nbins = wf_buffer_length//wf_sipm_bin_width
-        sipmwfs =  electron_loop(dx.astype(np.float64), dy.astype(np.float64), times.astype(np.float64), photons.astype(np.uint),
-                                 xsipms.astype(np.float64), ysipms.astype(np.float64), PSF_values.astype(np.float64), PSF_distances.astype(np.float64),
-                                 ELtimes.astype(np.float64), wf_sipm_bin_width, waveform_nbins)
-        sipmwfs = np.random.poisson(sipmwfs)
+        sipmwfs = electron_loop_multinomial(dx, dy, times, photons, xsipms, ysipms, PSF_values, PSF_distances, EL_times, wf_buffer_length, wf_sipm_bin_width)
+
         return sipmwfs
 
     return create_sipm_waveforms_
+
+
+def electron_loop_multinomial(dx, dy, times, nphotons, xsipms, ysipms, PSF_values, PSF_distances, EL_times, wf_buffer_length, wf_sipm_bin_width):
+    nsipms = len(xsipms)
+    sipmwfs = np.zeros([nsipms, int(wf_buffer_length//wf_sipm_bin_width)])
+    sipm_timebin = np.arange(0, wf_buffer_length, wf_sipm_bin_width)
+    npartitions = PSF_values.shape[1]
+    numel = len(dx)
+    max_psf = max(PSF_distances)
+    probs = np.zeros(shape=(npartitions, nsipms))
+    probs_fl = np.zeros(shape=(npartitions*nsipms+1)) #last sipm is no-detection
+    for elindx in range(numel):
+
+        xel = dx[elindx]
+        yel = dy[elindx]
+        phel = nphotons[elindx]
+        tint = times[elindx]
+        dist = np.sqrt((xel-xsipms)**2 + (yel-ysipms)**2)
+        dist_msk = dist<max_psf
+        psf_indcs = np.digitize(dist[dist_msk], PSF_distances)-1
+        probs[:, dist_msk] = PSF_values[psf_indcs].T/npartitions
+        probs_fl[:-1] = probs.ravel()
+        signal = np.random.multinomial(phel, probs_fl)[:-1]
+        signal = signal.reshape(npartitions, nsipms)#remove no-detected column
+        time_indx = np.digitize(tint + EL_times, sipm_timebin)-1
+        np.add.at(sipmwfs, (slice(0, nsipms), time_indx), signal.T)
+
+    return sipmwfs
+

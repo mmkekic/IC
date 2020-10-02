@@ -28,11 +28,14 @@ def pes_at_pmts(LT      : Callable  ,
             photoelectrons at each PMT produced by each hit.
             Shape is (nsensors, nhits)
     """
+
     if np.any(zs): #S1
-        pes = photons[:, np.newaxis] * LT(xs, ys, zs)
-    else:          #S2
-        pes = photons[:, np.newaxis] * LT(xs, ys)
-    pes = np.random.poisson(pes)
+        probs = LT(xs, ys, zs)
+    else:
+        probs = LT(xs, ys)
+    to_app = np.zeros(shape=(probs.shape[0], 1))
+    probs = np.append(probs, to_app, axis=1)
+    pes = np.vstack([np.random.multinomial(photons[i], probs[i])[:-1] for i in range(len(photons))])
     return pes.T
 
 
