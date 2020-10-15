@@ -126,7 +126,7 @@ def get_df_from_pmaps_(*,drift_velocity, stride):
     return get_df_from_pmaps
 
 types_dict_hits = OrderedDict({'event'     : np.int32  , 'time' : np.uint64, 'npeak'  : np.int32,
-                               'X': np.float64, 'Y'  : np.float64    , 'Z'     : np.float64,
+                               'X': np.float64, 'Y'  : np.float64    , 'Z'     : np.float64, 'DT' : np.float64,
                                'E' : np.float64, 'E_cut'  : np.float64, 'Q'     : np.float64,
                                'Q_cut' : np.float64,  'residual': np.float64, 'reconstructed':bool})
 
@@ -146,6 +146,7 @@ def hits_reconstructor (*, psf_name, sipm_db, Zmax, Zmin, Xmin, Xmax, Ymax, Ymin
         try:
             for iz, zuniq in enumerate(Z_unique_ev):
                 hits_sl = phits_df[phits_df['Z']==zuniq]
+                dt = hits_sl.dt.unique()[0]
                 npeak = hits_sl.peak.unique()[0]
                 E_full = hits_sl['E'].sum()
                 Q_cond = (hits_sl['Q']>pes_cut)
@@ -154,6 +155,7 @@ def hits_reconstructor (*, psf_name, sipm_db, Zmax, Zmin, Xmin, Xmax, Ymax, Ymin
                     hits_slice = pd.DataFrame({'event':event, 'time':time, 'npeak':npeak,
                                                'X':sipm_db.X.values[hits_sl.nsipm.values], 
                                                'Y':sipm_db.X.values[hits_sl.nsipm.values], 'Z':hits_sl.Z,
+                                               'DT' : dt,
                                                'E':hits_sl.E, 'E_cut':0,
                                                'Q':hits_sl.Q, 'Q_cut':0,
                                                'residual':E_full/E_event, 'reconstructed':False})
@@ -196,6 +198,7 @@ def hits_reconstructor (*, psf_name, sipm_db, Zmax, Zmin, Xmin, Xmax, Ymax, Ymin
                     mask_pos = (res>0)
                     hits_slice = pd.DataFrame({'event':event, 'time':time, 'npeak':npeak,
                                                'X':xbins[XY_digitz[:, 0]][mask_pos], 'Y':ybins[XY_digitz[:, 1]][mask_pos], 'Z':zuniq,
+                                               'DT' : dt,
                                                'E':res[mask_pos]*E_full/sum(res), 'E_cut':res[mask_pos]*E_part/sum(res),
                                                'Q':res[mask_pos]*Q_full/sum(res), 'Q_cut':res[mask_pos]*Q_part/sum(res),
                                                'residual':residual, 'reconstructed':True})
@@ -207,6 +210,43 @@ def hits_reconstructor (*, psf_name, sipm_db, Zmax, Zmin, Xmin, Xmax, Ymax, Ymin
             print(e)
             return pd.DataFrame(columns=list(types_dict_hits.keys()))
     return reconstruct_hits
+
+types_dict_kdst = OrderedDict({'event'     : np.int32  , 'time' : np.uint64, 'DT' : np.float64,
+                               'nS1' : np.uint16, 'nS2':np.uint16, 's1_peak' : np.uint16, 's2_peak':np.uint16,
+                               'Z' : np.float64, 'X' : np.float64, 'Y': np.float64, 'R' :np.float64,
+                               'Z_cut' : np.float64, 'X_cut' : np.float64, 'Y_cut': np.float64, 'R_cut' :np.float64,
+                               'S2e' : np.float64, 'S2q' : np.float64, 'S2e_cut' : np.float64, 'S2q_cut':np.float64})
+
+def extract_kdst_table(event, time, rhits):
+    kdst = pd.DataFrame(columns=list(types_dict_kdst.keys()))
+    if len(rhits):
+        nS1 = 0
+        s1_peak = 0
+        nS2 = max(rhits.npeak)
+        rhits_ = rhits[rhits.reconstructed]
+        for i, (s2_peak, g) in enumerate(rhits_.groupby('npeak')):
+            S2e = g.E.sum()
+            S2e_cut = g.E_cut.sum()
+            S2q = g.Q.sum()
+            S2q_cut = g.Q_cut.sum()
+            X = np.average(g.X, weights=g.E)
+            Y = np.average(g.Y, weights=g.E)
+            Z = np.average(g.Z, weights=g.E)
+            R = np.sqrt(X**2+Y**2)
+            X_cut = np.average(g.X, weights=g.E_cut)
+            Y_cut = np.average(g.Y, weights=g.E_cut)
+            Z_cut = np.average(g.Z, weights=g.E_cut)
+            R_cut = np.sqrt(X_cut**2+Y_cut**2)
+            DT = g.DT.unique()[0]
+            dct = ({'event'     : event  , 'time' : time, 'DT' : DT,
+                    'nS1' : nS1, 'nS2': nS2, 's1_peak' : s1_peak, 's2_peak':s2_peak,
+                    'Z' : Z, 'X' : X, 'Y': Y, 'R' :R,
+                    'Z_cut' : Z_cut, 'X_cut' : X_cut, 'Y_cut': Y_cut, 'R_cut' :R_cut,
+                    'S2e' : S2e, 'S2q' : S2q, 'S2e_cut' : S2e_cut, 'S2q_cut':S2q_cut})
+            kdst.loc[i] = dct
+            #kdst = kdst.append(dfp, sort=True, ignore_index=True)
+        kdst = kdst.apply(lambda x : x.astype(types_dict_kdst[x.name]))
+    return kdst
 
 
 def hits_writer(h5out, compression='ZLIB4'):
@@ -220,10 +260,31 @@ def hits_writer(h5out, compression='ZLIB4'):
                          columns_to_index   = ['event']                  )
     return write_hits
 
-
+def kdst_from_df_writer(h5out, compression='ZLIB4'):
+    def write_kdst(df):
+        return df_writer(h5out              = h5out        ,
+                         df                 = df           ,
+                         compression        = compression  ,
+                         group_name         = 'DST'        ,
+                         table_name         = 'Events'     ,
+                         descriptive_string = 'KDST Events',
+                         columns_to_index   = ['event']    )
+    return write_kdst
+def pmaps_filterer(max_nS1, max_nS2):
+    def filter_pmaps (s1, s2, s2si):
+        if not all((len(s1), len(s2), len(s2si))):
+            return False
+        else:
+            if s1.peak.max()>=max_nS1:
+                return False
+            elif s2.peak.max()>=max_nS2:
+                return False
+            else:
+                return True
+    return filter_pmaps
 @city
 def reco_city(files_in, file_out, compression, event_range, print_mod,
-              detector_db, run_number, drift_velocity, stride, psf_params, reco_params):
+              detector_db, run_number, drift_velocity, max_nS1, max_nS2, stride, psf_params, reco_params):
 
 
     get_hits = fl.map(get_df_from_pmaps_(drift_velocity=drift_velocity, stride=stride),
@@ -233,14 +294,20 @@ def reco_city(files_in, file_out, compression, event_range, print_mod,
     reconstruct_hits   = fl.map(hits_reconstructor (sipm_db = DataSiPM(detector_db, run_number), **psf_params, ** reco_params),
                                 args = ('phits', 'energy', 'event_number', 'timestamp'),
                                 out  = 'rhits')
+    get_kdst = fl.map(extract_kdst_table,
+                      args = ('event_number', 'timestamp', 'rhits'),
+                      out = 'kdst')
 
-
+    filter_pmaps = fl.map(pmaps_filterer(max_nS2, max_nS2),
+                          args = ('s1', 's2', 's2sipm'),
+                          out = 'pmaps_passed')
     filter_events_no_hits            = fl.map(lambda x : len(x) > 0,
-                                             args = 'rhits',
-                                             out  = 'rhits_passed')
+                                              args = 'rhits',
+                                              out  = 'rhits_passed')
+
 
     hits_passed              = fl.count_filter(bool, args="rhits_passed")
-
+    events_passed   = fl.count_filter(bool, args="pmaps_passed")
     event_count_in  = fl.spy_count()
     event_count_out = fl.spy_count()
 
@@ -248,25 +315,29 @@ def reco_city(files_in, file_out, compression, event_range, print_mod,
 
         # Define writers...
         write_event_info = fl.sink(run_and_event_writer(h5out), args=("run_number", "event_number", "timestamp"))
-
+        write_kdst_table      = fl.sink( kdst_from_df_writer(h5out)                      , args="kdst"               )
         write_hits     = fl.sink( hits_writer     (h5out=h5out)                , args="rhits" )
-        write_filter  = fl.sink( event_filter_writer(h5out, "high_th_select" )   , args=("event_number", "rhits_passed"))
+        write_filter  = fl.sink( event_filter_writer(h5out, "pmaps_selected" )   , args=("event_number", "pmaps_passed"))
+        write_hits_filter  = fl.sink( event_filter_writer(h5out, "high_select" )   , args=("event_number", "rhits_passed"))
         evtnum_collect = collect()
 
         result = push(source = pmaps_df_from_files(files_in),
                       pipe   = pipe(fl.slice(*event_range, close_all=True)        ,
                                     print_every(print_mod)                        ,
                                     event_count_in        .spy                    ,
-                                    fl.branch(write_event_info                   ),
                                     fl.branch("event_number", evtnum_collect.sink),
-
+                                    fl.branch(write_event_info                   ),
+                                    filter_pmaps                                  ,
+                                    fl.branch(write_filter)                       ,
+                                    events_passed.filter                          ,
                                     get_hits                                      ,
                                     reconstruct_hits                              ,
                                     filter_events_no_hits                         ,
-                                    fl.branch(write_filter)                       ,
+                                    fl.branch(write_hits_filter)                       ,
                                     hits_passed.filter                            ,
+                                    get_kdst                                      ,
                                     event_count_out       .spy                    ,
-                                    write_hits                                   ),
+                                    fl.fork(write_hits, write_kdst_table)        ),
                       result = dict(events_in  =event_count_in .future,
                                     events_out =event_count_out.future,
                                     evtnum_list=evtnum_collect .future))
