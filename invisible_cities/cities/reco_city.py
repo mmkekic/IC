@@ -83,13 +83,11 @@ def pmaps_df_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.DataFram
                 s1 = pd.DataFrame.from_records(S1_table.read_where( 'event == {}'.format(event_number)))
                 s2sipm = pd.DataFrame.from_records(S2Si_table.read_where( 'event == {}'.format(event_number)))
 
-                if len(s2) & len(s1) & len(s2sipm):
-                    yield dict(s2 = s2, s1 = s1, s2sipm = s2sipm,
-                               run_number = run_number,
-                               event_number = event_number,
-                               timestamp = timestamp)
-                else:
-                    continue
+
+                yield dict(s2 = s2, s1 = s1, s2sipm = s2sipm,
+                           run_number = run_number,
+                           event_number = event_number,
+                           timestamp = timestamp)
 
 def get_df_from_pmaps_(*,drift_velocity, stride):
     def get_df_from_pmaps(s1, s2, s2sipm):
@@ -113,6 +111,9 @@ def get_df_from_pmaps_(*,drift_velocity, stride):
         s2sipm_pr = s2sipm.groupby(['peak', 'rebin_indx', 'nsipm']).agg({'ene':np.sum,'dt':np.mean, 'pmt_ene':np.sum}).reset_index()
         s2sipm_pr.drop('rebin_indx', axis=1, inplace=True)
         rebined_df = s2sipm_pr.groupby(['dt']).apply(lambda row: row['ene']*(row['pmt_ene'].mean())/(row['ene'].sum()))
+        #pandas returns a DF if there is only one group...
+        if not isinstance(rebined_df,pd.Series):
+            rebined_df = rebined_df.stack()
         s2sipm_pr.loc[rebined_df.index.get_level_values(1), 'pmt_ene_ps']=rebined_df.values
         #s2sipm_pr.drop(labels='pmt_ene', axis=1, inplace=True)
         s2sipm_pr = s2sipm_pr.rename(columns={'ene':'Q', 'pmt_ene_ps':'E', 'pmt_ene':'sliceE'})
