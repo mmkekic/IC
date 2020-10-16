@@ -16,6 +16,7 @@ os:
 branches:
   except:
     - /^docs\..*$/
+    - reco_city
 
 install:
   - source manage.sh work_in_python_version_no_tests ${IC_PYTHON_VERSION}
