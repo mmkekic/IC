@@ -72,7 +72,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
     simulate_S1_times = fl.map(s1_times_simulator(s1_lighttable, ws),
                                args = ('x', 'y', 'z', 'time', 'energy'),
                                out = 's1_times')
-    get_buffer_times_and_length = fl.map(buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, drift_velocity_EL, S2tmax=np.inf),
+    get_buffer_times_and_length = fl.map(buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, drift_velocity_EL, S2tmax=max_time),
                                          args = ('s1_times', 'times_ph'),
                                          out = ('tmin', 'tmax', 'buffer_length'))
 
