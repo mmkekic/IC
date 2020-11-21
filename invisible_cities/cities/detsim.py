@@ -63,7 +63,10 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                                 args = ('x', 'y', 'z', 'energy', 'time', 'label'),
                                 out = ('x_a', 'y_a', 'z_a', 'energy_a', 'time_a'))
 
-    events_passed_active_hits = fl.count_filter(bool, args='energy_a')
+    filter_events_no_active_hits = fl.map (lambda x:np.any(x),
+                                           args= 'energy_a',
+                                           out = 'passed')
+    events_passed_active_hits = fl.count_filter(bool, args='passed')
 
     simulate_electrons = fl.map(ielectron_simulator(wi, fano_factor, lifetime, transverse_diffusion, longitudinal_diffusion, drift_velocity, el_gain, el_gain_sigma),
                                 args = ('x_a', 'y_a', 'z_a', 'time_a', 'energy_a'),
@@ -112,12 +115,15 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                                                         nsamp_pmt        ,
                                                         nsamp_sipm       )
 
-
+        write_nohits_filter = fl.sink( event_filter_writer(h5out, "active_hits")   , args=("event_number", "passed"))
         result = fl.push(source=MC_hits_from_files(files_in),
                          pipe  = fl.pipe(fl.slice(*event_range, close_all=True),
                                          event_count_in.spy    ,
                                          print_every(print_mod),
                                          select_active_hits,
+                                         filter_events_no_active_hits,
+                                         fl.branch(write_nohits_filter) ,
+                                         events_passed_active_hits.filter,
                                          simulate_electrons,
                                          simulate_S1_times,
                                          get_buffer_times_and_length,
