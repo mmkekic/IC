@@ -1,7 +1,7 @@
 import numpy  as np
 import tables as tb
 import pandas as pd
-
+import os
 from functools import partial
 
 from invisible_cities.core import system_of_units as units
@@ -48,69 +48,43 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
     datasipm = db.DataSiPM(detector_db, run_number)
     npmts  = len(datapmt)
     nsipms = len(datasipm)
-
-    S1_LT = create_lighttable_function(s1_lighttable)
-    S2_LT = LT_PMT (fname=s2_lighttable)
-    PSF   = LT_SiPM(fname=sipm_psf, sipm_database=datasipm)
-
+    LT_pmt  = LT_PMT (fname=os.path.expandvars(s2_lighttable))
+    LT_sipm = LT_SiPM(fname=os.path.expandvars(sipm_psf), sipm_database=datasipm)
+    el_gap = LT_sipm.el_gap
     el_gain_sigma = np.sqrt(el_gain * conde_policarpo_factor)
 
-    # functions
-    simulate_ielectrons = electron_simulation(wi, fano_factor, lifetime, transverse_diffusion, longitudinal_diffusion, drift_velocity)
-    compute_S1_times    = S1_times_simulation(S1_LT)
-    generate_S1_photons = lambda energies: np.random.poisson(energies / ws)
-    generate_S2_photons = lambda nes:      np.random.normal (el_gain, el_gain_sigma, size=nes).astype(np.int32)
 
-    create_S2_pmtwfs  = create_S2_waveforms(S2_LT, drift_velocity_EL, wf_pmt_bin_width)
-    create_S2_sipmwfs = create_S2_waveforms(PSF  , drift_velocity_EL, wf_sipm_bin_width)
+    select_active_hits = fl.map(select_active_hits_,
+                                args = ('x', 'y', 'z', 'energy', 'time', 'label'),
+                                out = ('x_a', 'y_a', 'z_a', 'energy_a', 'time_a'))
 
-    ##########################################
-    ############ SIMULATE ELECTRONS ##########
-    ##########################################
-    select_active_hits  = fl.map(select_active_hits_, args=("x", "y", "z", "energy", "time", "label"), out=("x_a", "y_a", "z_a", "energy_a", "time_a"))
-    # TO-DO: FILTER EMPTY ACTIVE HITS
-    simulate_ielectrons = fl.map(simulate_ielectrons, args=("x_a", "y_a", "z_a", "energy_a")         , out=("dx", "dy", "dz", "electrons"))
-    count_electrons     = fl.map(lambda x: np.sum(x), args=("electrons"), out=("nes"))
-    el_arrival_times    = fl.map(lambda dz, times, electrons: dz/drift_velocity + np.repeat(times, electrons), args=("dz", "time_a", "electrons"), out=("dt"))
+    events_passed_active_hits = fl.count_filter(bool, args='energy_a')
 
-    simulate_electrons = fl.pipe(select_active_hits, simulate_ielectrons, count_electrons, el_arrival_times)
+    simulate_electrons = fl.map(ielectron_simulator(wi, fano_factor, lifetime, transverse_diffusion, longitudinal_diffusion, drift_velocity, el_gain, el_gain_sigma),
+                                args = ('x_a', 'y_a', 'z_a', 'time_a', 'energy_a'),
+                                out  = ('x_ph', 'y_ph', 'z_ph', 'times_ph', 'nphotons'))
 
-    ############################################
-    ############ SIMULATE PHOTONS ##############
-    ############################################
-    generate_S1_photons = fl.map(generate_S1_photons, args = ("energy"), out = ("S1photons"))
-    generate_S2_photons = fl.map(generate_S2_photons, args = ("nes")   , out = ("S2photons"))
+    simulate_S1_times = fl.map(s1_times_simulator(s1_lighttable, ws),
+                               args = ('x', 'y', 'z', 'time', 'energy'),
+                               out = 's1_times')
+    get_buffer_times_and_length = fl.map(buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, drift_velocity_EL, S2tmax=np.inf),
+                                         args = ('s1_times', 'times_ph'),
+                                         out = ('tmin', 'tmax', 'buffer_length'))
 
-    simulate_photons = fl.pipe(generate_S1_photons, generate_S2_photons)
+    create_pmt_s1_waveforms = fl.map(s1_waveforms_creator(wf_pmt_bin_width),
+                                     args = ('s1_times', 'tmin', 'buffer_length'),
+                                     out = 's1_pmt_waveforms')
+    create_pmt_s2_waveforms = fl.map(s2_waveform_creator (wf_pmt_bin_width, LT_pmt, drift_velocity_EL),
+                                     args = ('x_ph', 'y_ph', 'times_ph', 'nphotons', 'tmin', 'buffer_length'),
+                                     out = 's2_pmt_waveforms')
+    sum_pmt_waveforms = fl.map(lambda x, y : x+y,
+                                  args = ('s1_pmt_waveforms', 's2_pmt_waveforms'),
+                                  out = 'pmtwfs')
+    create_pmt_waveforms = fl.pipe(create_pmt_s1_waveforms, create_pmt_s2_waveforms, sum_pmt_waveforms)
 
-    #################################
-    ############ TIMES ##############
-    #################################
-    compute_S1_times      = fl.map(compute_S1_times, args=("x", "y", "z", "time", "S1photons"), out="S1times")
-    compute_bias_time     = fl.map(lambda S1times: np.min(np.hstack(S1times)), args=("S1times"), out=("bias_time"))
-    translate_S1_times    = fl.map(lambda S1times, bias_time: [times-bias_time for times in S1times], args=("S1times", "bias_time"), out=("S1times"))
-    translate_S2_times    = fl.map(lambda S2times, bias_time: S2times-bias_time, args=("dt", "bias_time"), out=("dt"))
-    compute_buffer_length = fl.map(lambda S2times: np.ceil(np.max(S2times) + np.max((wf_pmt_bin_width, wf_sipm_bin_width))), args=("dt"), out=("buffer_length"))
-
-    #############################################
-    ############ CREATE WAVEFORMS ###############
-    #############################################
-    ##### PMTs #####
-    create_S1_pmtwfs = partial(create_S1_waveforms, bin_width=wf_pmt_bin_width)
-    create_S1_pmtwfs = fl.map(create_S1pmtwfs, args=("S1times", "buffer_length"), out=("S1pmtwfs"))
-    create_S2_pmtwfs = fl.map(create_S2_pmtwfs, args=("dx", "dy", "dt", "S2photons", "buffer_length"), out=("S2pmtwfs"))
-    add_pmtwfs       = fl.map(lambda x, y: x + y, args=("S1pmtwfs", "S2pmtwfs"), out=("pmtwfs"))
-
-    create_pmt_waveforms = fl.pipe(create_S1_pmtwfs, create_S2_pmtwfs, add_pmtwfs)
-
-    #### SIPMs #####
-    create_sipm_waveforms = fl.map(create_S2_sipmwfs, args=("dx", "dy", "dt", "S2photons", "buffer_length"), out=("sipmwfs"))
-
-    ############################
-    ####### BUFFY PIPE #########
-    ############################
-    # TO DO
-
+    create_sipm_waveforms = fl.map(s2_waveform_creator (wf_sipm_bin_width, LT_sipm, drift_velocity_EL),
+                                   args = ('x_ph', 'y_ph', 'times_ph', 'nphotons', 'tmin', 'buffer_length'),
+                                   out = 'sipmwfs')
 
     event_count_in = fl.spy_count()
     evtnum_collect = collect()
@@ -132,8 +106,10 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                          pipe  = fl.pipe(fl.slice(*event_range, close_all=True),
                                          event_count_in.spy    ,
                                          print_every(print_mod),
+                                         select_active_hits,
                                          simulate_electrons,
-                                         simulate_photons,
+                                         simulate_S1_times,
+                                         get_buffer_times_and_length,
                                          # fl.spy(lambda d: [print(k) for k in d]),
                                          create_pmt_waveforms,
                                          create_sipm_waveforms,
@@ -155,36 +131,55 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
 ########################
 ###### FUNCTIONS #######
 ########################
-
 def select_active_hits_(x, y, z, energy, time, label):
     sel = label == "ACTIVE"
     return x[sel], y[sel], z[sel], energy[sel], time[sel]
 
 
-def electron_simulation(wi, fano_factor, lifetime, transverse_diffusion, longitudinal_diffusion, drift_velocity):
-
-    def simulate_ielectrons(x, y, z, energy):
+def ielectron_simulator(wi, fano_factor, lifetime, transverse_diffusion, longitudinal_diffusion, drift_velocity, el_gain, el_gain_sigma):
+    def simulate_ielectrons(x, y, z, time, energy):        
         electrons = generate_ionization_electrons(energy, wi, fano_factor)
         electrons = drift_electrons(z, electrons, lifetime, drift_velocity)
         dx, dy, dz = diffuse_electrons(x, y, z, electrons, transverse_diffusion, longitudinal_diffusion)
-        return dx, dy, dz, electrons
-
+        dtimes  = dz/drift_velocity + np.repeat(time, electrons)
+        nphotons  = np.round(np.random.normal(el_gain, el_gain_sigma, size=electrons.sum())).astype(np.int32)
+        return dx, dy, dz, dtimes, nphotons
     return simulate_ielectrons
 
+def s1_times_simulator(s1_lighttable, ws):
+    S1_LT = create_lighttable_function(os.path.expandvars(s1_lighttable))
+    def simulate_S1_times(x, y, z, time, energy):
+        s1_photons = np.random.poisson(energy / ws)
+        s1_pes_at_pmts = compute_S1_pes_at_pmts(x, y, z, s1_photons, S1_LT)
+        s1times = generate_S1_times_from_pes(s1_pes_at_pmts, time)
+        return s1times
+    return simulate_S1_times
 
-def S1_times_simulation(S1_LT):
+def buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, el_dv, S2tmax=np.inf):
+    def get_buffer_times_and_length(S1times, S2times):
+        print(S1times)
+        all_times = np.concatenate(S1times).ravel()
+        tmin = min(all_times) if len(all_times) else 0
+        tmax = max(S2times) + max(wf_sipm_bin_width, wf_pmt_bin_width) +el_gap/el_dv
+        buffer_length = np.ceil((tmax-tmin)/max(wf_sipm_bin_width, wf_pmt_bin_width))
+        return tmin, tmax, buffer_length
+    return get_buffer_times_and_length
 
-    def compute_S1_times(x, y, z, time, S1photons):
-        S1_pes_at_pmts = compute_S1_pes_at_pmts(x, y, z, S1photons, S1_LT)
-        S1times = generate_S1_times_from_pes(S1_pes_at_pmts, time)
-        return S1times
+def s1_waveforms_creator(wf_pmt_bin_width):
+    def create_s1_waveforms(S1times, tmin, buffer_length):
+        s1_wfs = create_S1_waveforms(S1times, buffer_length, wf_pmt_bin_width, tmin)
+        return s1_wfs
+    return create_s1_waveforms
 
-    return compute_S1_times
 
+def s2_waveform_creator (sns_bin_width, LT, EL_drift_velocity):
+    def create_s2_waveform(xs, ys, ts, phs, tmin, buffer_length):
+        ts_aux = ts-tmin #shift absolute time to start at tmin
+        waveforms = electron_loop(xs, ys, ts_aux, phs, LT, EL_drift_velocity, sns_bin_width, buffer_length)
+        return np.random.poisson(waveforms)
+    return create_s2_waveform
 
-def create_S2_waveforms(LT, EL_drift_velocity, sensor_time_bin):
+    
+    
+    
 
-    def create_waveforms(xs, ys, ts, phs, buffer_length):
-        return electron_loop(xs, ys, ts, phs, LT, EL_drift_velocity, sensor_time_bin, buffer_length)
-
-    return create_waveforms
