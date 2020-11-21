@@ -13,7 +13,7 @@ from . components import city
 from . components import print_every
 from . components import copy_mc_info
 from . components import collect
-
+from . components import calculate_and_save_buffers
 from invisible_cities.dataflow  import dataflow   as fl
 
 from invisible_cities.io.rwf_io           import rwf_writer
@@ -38,7 +38,9 @@ from .. detsim.simulate_S1        import create_S1_waveforms
 def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttable, s2_lighttable, sipm_psf,
            ws, wi, fano_factor, drift_velocity, lifetime, transverse_diffusion, longitudinal_diffusion,
            el_gain, conde_policarpo_factor, drift_velocity_EL,
-           wf_buffer_length, wf_pmt_bin_width, wf_sipm_bin_width,
+           wf_pmt_bin_width, wf_sipm_bin_width,
+           max_time   ,
+           buffer_length, pre_trigger, trigger_threshold,
            print_mod, compression):
 
     ########################
@@ -46,8 +48,10 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
     ########################
     datapmt  = db.DataPMT (detector_db, run_number)
     datasipm = db.DataSiPM(detector_db, run_number)
-    npmts  = len(datapmt)
-    nsipms = len(datasipm)
+    npmt  = len(datapmt)
+    nsipm = len(datasipm)
+    nsamp_pmt  = int(buffer_length /  wf_pmt_bin_width)
+    nsamp_sipm = int(buffer_length /  wf_sipm_bin_width)
     LT_pmt  = LT_PMT (fname=os.path.expandvars(s2_lighttable))
     LT_sipm = LT_SiPM(fname=os.path.expandvars(sipm_psf), sipm_database=datasipm)
     el_gap = LT_sipm.el_gap
@@ -79,28 +83,34 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                                      out = 's2_pmt_waveforms')
     sum_pmt_waveforms = fl.map(lambda x, y : x+y,
                                   args = ('s1_pmt_waveforms', 's2_pmt_waveforms'),
-                                  out = 'pmtwfs')
+                                  out = 'pmt_bin_wfs')
     create_pmt_waveforms = fl.pipe(create_pmt_s1_waveforms, create_pmt_s2_waveforms, sum_pmt_waveforms)
 
     create_sipm_waveforms = fl.map(s2_waveform_creator (wf_sipm_bin_width, LT_sipm, drift_velocity_EL),
                                    args = ('x_ph', 'y_ph', 'times_ph', 'nphotons', 'tmin', 'buffer_length'),
-                                   out = 'sipmwfs')
+                                   out = 'sipm_bin_wfs')
+
+    get_bin_edges  = fl.map(bin_edges_getter(wf_pmt_bin_width, wf_sipm_bin_width),
+                            args = ('pmt_bin_wfs', 'sipm_bin_wfs'),
+                            out = ('pmt_bins', 'sipm_bins'))
+
 
     event_count_in = fl.spy_count()
     evtnum_collect = collect()
 
     with tb.open_file(file_out, "w", filters = tbl.filters(compression)) as h5out:
+        buffer_calculation = calculate_and_save_buffers(buffer_length    ,
+                                                        pre_trigger      ,
+                                                        wf_pmt_bin_width ,
+                                                        wf_sipm_bin_width,
+                                                        trigger_threshold,
+                                                        h5out            ,
+                                                        run_number       ,
+                                                        npmt             ,
+                                                        nsipm            ,
+                                                        nsamp_pmt        ,
+                                                        nsamp_sipm       )
 
-        ######################################
-        ############# WRITE WFS ##############
-        ######################################
-        write_pmtwfs  = rwf_writer(h5out, group_name = None, table_name = "pmtrd" , n_sensors = npmts , waveform_length = int(wf_buffer_length // wf_pmt_bin_width))
-        write_sipmwfs = rwf_writer(h5out, group_name = None, table_name = "sipmrd", n_sensors = nsipms, waveform_length = int(wf_buffer_length // wf_sipm_bin_width))
-        write_pmtwfs  = fl.sink(write_pmtwfs , args=("pmtwfs"))
-        write_sipmwfs = fl.sink(write_sipmwfs, args=("sipmwfs"))
-
-        write_run_event = partial(run_and_event_writer(h5out), run_number, timestamp=0)
-        write_run_event = fl.sink(write_run_event, args=("event_number"))
 
         result = fl.push(source=MC_hits_from_files(files_in),
                          pipe  = fl.pipe(fl.slice(*event_range, close_all=True),
@@ -113,11 +123,10 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                                          # fl.spy(lambda d: [print(k) for k in d]),
                                          create_pmt_waveforms,
                                          create_sipm_waveforms,
+                                         get_bin_edges,
                                          fl.branch("event_number"     ,
                                                    evtnum_collect.sink),
-                                         fl.fork(write_pmtwfs,
-                                                 write_sipmwfs,
-                                                 write_run_event)),
+                                         buffer_calculation),
                          result = dict(events_in     = event_count_in.future,
                                        evtnum_list   = evtnum_collect.future))
 
@@ -157,11 +166,10 @@ def s1_times_simulator(s1_lighttable, ws):
 
 def buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, el_dv, S2tmax=np.inf):
     def get_buffer_times_and_length(S1times, S2times):
-        print(S1times)
         all_times = np.concatenate(S1times).ravel()
         tmin = min(all_times) if len(all_times) else 0
-        tmax = max(S2times) + max(wf_sipm_bin_width, wf_pmt_bin_width) +el_gap/el_dv
-        buffer_length = np.ceil((tmax-tmin)/max(wf_sipm_bin_width, wf_pmt_bin_width))
+        tmax = max(S2times) + max(wf_sipm_bin_width, wf_pmt_bin_width) + el_gap/el_dv
+        buffer_length = np.ceil((tmax-tmin)/wf_sipm_bin_width)*wf_sipm_bin_width
         return tmin, tmax, buffer_length
     return get_buffer_times_and_length
 
@@ -179,6 +187,12 @@ def s2_waveform_creator (sns_bin_width, LT, EL_drift_velocity):
         return np.random.poisson(waveforms)
     return create_s2_waveform
 
+def bin_edges_getter(wf_pmt_bin_width, wf_sipm_bin_width):
+    def get_bin_edges(pmt_wfs, sipm_wfs):
+        pmt_bins  = np.arange(0, pmt_wfs .shape[1])* wf_pmt_bin_width
+        sipm_bins = np.arange(0, sipm_wfs.shape[1])*wf_sipm_bin_width
+        return pmt_bins, sipm_bins
+    return get_bin_edges
     
     
     
