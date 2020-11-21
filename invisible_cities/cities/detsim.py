@@ -4,20 +4,21 @@ import pandas as pd
 import os
 from functools import partial
 
-from invisible_cities.core import system_of_units as units
-from invisible_cities.reco import tbl_functions   as tbl
+from .. core import system_of_units as units
+from .. reco import tbl_functions   as tbl
 
-import invisible_cities.database.load_db          as db
+from .. database import load_db  as db
 
 from . components import city
 from . components import print_every
 from . components import copy_mc_info
 from . components import collect
 from . components import calculate_and_save_buffers
-from invisible_cities.dataflow  import dataflow   as fl
+from .. dataflow  import dataflow   as fl
 
-from invisible_cities.io.rwf_io           import rwf_writer
-from invisible_cities.io.run_and_event_io import run_and_event_writer
+from .. io.rwf_io           import rwf_writer
+from .. io.run_and_event_io import run_and_event_writer
+from .. io. event_filter_io import event_filter_writer
 
 # DETSIM IMPORTS
 from .  components                import MC_hits_from_files
