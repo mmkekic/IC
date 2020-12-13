@@ -39,8 +39,7 @@ def create_wfs(double [:] xs           ,
                double     tmin = 0    ):
 
     cdef:
-        int [:] sns_ids   = lt.sensor_ids
-        int nsens         = sns_ids.shape[0]
+        int nsens         = lt.sensor_ids.shape[0]
         double[:] zs      = lt.zbins
         int num_bins      = <int> ceil (buffer_length/sns_time_bin)
         double [:, :] wfs = np.zeros([nsens, num_bins], dtype=np.double)
@@ -65,8 +64,7 @@ def create_wfs(double [:] xs           ,
         ph_p = phs[pindx]
         t_p  = (ts[pindx]-tmin)/sns_time_bin
         for snsindx in range(nsens):
-            sns_id = sns_ids[snsindx]
-            lt_factors_p = lt.get_values_(x_p, y_p, sns_id)
+            lt_factors_p = lt.get_values_(x_p, y_p, snsindx)
             if lt_factors_p != NULL:
                 for elindx in range(el_times.shape[0]):
                     time  = t_p + el_times[elindx]
