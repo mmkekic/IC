@@ -70,3 +70,41 @@ def test_create_wfs_tmin(get_dfs, xs, ys, ts, ps):
     waveform_sh = create_wfs(xs, ys, ts_shift, ps, lt, el_drift_velocity, sensor_time_bin, buffer_length)
     waveform    = create_wfs(xs, ys, ts      , ps, lt, el_drift_velocity, sensor_time_bin, buffer_length, tmin)
     np.testing.assert_allclose(waveform_sh, waveform)
+
+
+@given(xs=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ys=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ts=arrays(np.float, 10, elements = floats  (min_value =    2*mus, max_value = 100*mus)),
+       ps=arrays(np.int32, 10, elements = integers(min_value =    10   , max_value = 100    )))
+def test_integrated_signal_pmts(get_dfs, xs, ys, ts, ps):
+    fname, lt_df, lt_conf = get_dfs['lt']
+    el_drift_velocity = 2.5 * mm/mus
+    sensor_time_bin   = 100 * ns
+    buffer_length     = 200 * mus
+    lt = LT_PMT(fname=fname)
+    n_sensors = len(lt.sensor_ids)
+    waveform = create_wfs(xs, ys, ts, ps, lt, el_drift_velocity, sensor_time_bin, buffer_length)
+    #calculate integrated signal from light tables per pmt
+    for i in range(12): #12 pmts
+        summed_sig  = np.sum([lt.get_values(x, y, i)*p for x, y, p in zip(xs, ys, ps)])
+        assert np.isclose(waveform[i].sum(),summed_sig)
+
+
+@given(xs=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ys=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ts=arrays(np.float, 10, elements = floats  (min_value =    2*mus, max_value = 100*mus)),
+       ps=arrays(np.int32, 10, elements = integers(min_value =    10   , max_value = 100    )))
+def test_integrated_signal_sipms(get_dfs, xs, ys, ts, ps):
+    datasipm = DataSiPM('new')
+    fname, psf_df, psf_conf = get_dfs['psf']
+    el_drift_velocity = 2.5 * mm/mus
+    sensor_time_bin   = 1   * mus
+    buffer_length     = 200 * mus
+    lt = LT_SiPM(fname=fname, sipm_database=datasipm)
+    n_sensors = len(lt.sensor_ids)
+    waveform = create_wfs(xs, ys, ts, ps, lt, el_drift_velocity, sensor_time_bin, buffer_length)
+    #calculate integrated signal from light tables per pmt
+    for i in range(len(datasipm)):
+        summed_sig  = np.sum([lt.get_values(x, y, i)*p for x, y, p in zip(xs, ys, ps)])
+        assert np.isclose(waveform[i].sum(),summed_sig)
+
