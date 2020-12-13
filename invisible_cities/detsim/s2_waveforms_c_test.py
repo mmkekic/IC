@@ -132,3 +132,32 @@ def test_time_distribution_pmts(get_dfs, xs, ys, ts, ps):
         expected_wf = np.ones(shape=nbins_el_gap)*total/nbins_el_gap
         np.testing.assert_allclose(waveform[i, tindx_min:tindx_max], expected_wf)
 
+
+@given(xs=floats  (min_value = -10*mm , max_value = 10 *mm ),
+       ys=floats  (min_value = -10*mm , max_value = 10 *mm ),
+       ts=floats  (min_value =   2*mus, max_value = 10 *mus),
+       ps=integers(min_value =  2000  , max_value = 3000   ))
+def test_time_distribution_sipms(get_dfs, xs, ys, ts, ps):
+    datasipm = DataSiPM('new')
+    #select central sipms only that will see the signal
+    datasipm = datasipm[(np.abs(datasipm.X)<=10*mm)&(np.abs(datasipm.Y)<=10*mm)]
+    fname, psf_df, psf_conf = get_dfs['psf']
+    el_drift_velocity = 2.5 * mm/mus
+    sensor_time_bin   = 1   * mus
+    buffer_length     = 20  * mus
+    time_bins = np.arange(0, buffer_length+sensor_time_bin, sensor_time_bin)
+    lt = LT_SiPM(fname=fname, sipm_database=datasipm)
+    el_time   = lt.el_gap/el_drift_velocity
+    tindx_min = np.digitize(ts, time_bins)-1
+    tindx_max = np.digitize(ts+el_time, time_bins)-1
+    nbins_el_gap = tindx_max-tindx_min
+    n_sensors = len(lt.sensor_ids)
+    waveform = create_wfs(np.array([xs]), np.array([ys]), np.array([ts]), np.array([ps]).astype(np.intc), lt, el_drift_velocity, sensor_time_bin, buffer_length)
+    z_bins = lt.zbins
+    z_bins_time = ts + z_bins/el_drift_velocity
+    sns_ids = lt.sensor_ids
+    for i in range(len(datasipm)):
+        signal = lt.get_values(xs, ys, i)*ps
+        expected, _ = np.histogram(z_bins_time, bins=time_bins, weights=signal)
+        np.testing.assert_allclose(waveform[i], expected)
+
