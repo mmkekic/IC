@@ -108,3 +108,27 @@ def test_integrated_signal_sipms(get_dfs, xs, ys, ts, ps):
         summed_sig  = np.sum([lt.get_values(x, y, i)*p for x, y, p in zip(xs, ys, ps)])
         assert np.isclose(waveform[i].sum(),summed_sig)
 
+
+@given(xs=floats  (min_value = -500*mm , max_value = 500*mm ),
+       ys=floats  (min_value = -500*mm , max_value = 500*mm ),
+       ts=floats  (min_value =    2*mus, max_value = 10 *mus),
+       ps=integers(min_value =   10    , max_value = 100   ))
+def test_time_distribution_pmts(get_dfs, xs, ys, ts, ps):
+    fname, lt_df, lt_conf = get_dfs['lt']
+    lt = LT_PMT(fname=fname)
+    el_drift_velocity = 2.5 * mm/mus
+    sensor_time_bin   = 10  * ns
+    buffer_length     = 20  * mus
+    time_bins = np.arange(0, buffer_length, sensor_time_bin)
+    el_time   = lt.el_gap/el_drift_velocity
+    tindx_min = np.digitize(ts, time_bins)-1
+    tindx_max = np.digitize(ts+el_time, time_bins)-1
+    nbins_el_gap = tindx_max-tindx_min
+    n_sensors = len(lt.sensor_ids)
+    waveform = create_wfs(np.array([xs]), np.array([ys]), np.array([ts]), np.array([ps]).astype(np.intc), lt, el_drift_velocity, sensor_time_bin, buffer_length)
+    for i in range(12): #12 pmts
+        total = lt.get_values(xs, ys, i)*ps
+        #the signal is expected to be uniformely spread
+        expected_wf = np.ones(shape=nbins_el_gap)*total/nbins_el_gap
+        np.testing.assert_allclose(waveform[i, tindx_min:tindx_max], expected_wf)
+
