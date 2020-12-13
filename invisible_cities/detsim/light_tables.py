@@ -1,13 +1,48 @@
 import numpy  as np
 import pandas as pd
-
+import warnings
 from typing import Callable
 
 from functools import partial
-
+from .. core                import system_of_units as units
 from .. core.core_functions import binedges_from_bincenters
 
 from .. io.dst_io  import load_dst
+
+
+def read_lt(fname, group_name, el_gap=None, active_r=None):
+    """ A helper function to extract dataframes and configuration infro from files.
+    Inputs
+        fname      : string of file name
+        group_name : group name under which table is saved
+        el_gap     : optional set of different el_gap
+                     a Warning is issued in case it differs from the config one
+        active_r   : optional set of different active_r
+                     a Warning is issued in case it differs from the config one
+    Returns a tuple
+        lt_df      : dataframe with light table
+        config_df  : dataframe with configuration parameters
+        el_gap     : input el_gap or el_gap read from file
+        el_gap     : input active_r or active_r read from file
+    """
+
+    lt_df      = load_dst(fname, group_name, "LightTable")
+    config_df  = load_dst(fname, group_name, "Config").set_index('parameter')
+    el_gap_f   = float(config_df.loc["EL_GAP"    ].value) * units.mm
+    active_r_f = float(config_df.loc["ACTIVE_rad"].value) * units.mm
+    if el_gap and (el_gap != el_gap_f):
+        warnings.warn('el_gap parameter mismatch, setting to user defined one',
+                      UserWarning)
+    else:
+        el_gap = el_gap_f
+
+    if active_r and (active_r != active_r_f):
+            warnings.warn('active_r parameter mismatch, setting to user defined one',
+                          UserWarning)
+    else:
+        active_r = active_r_f
+
+    return lt_df, config_df, el_gap, active_r
 
 
 def create_lighttable_function(filename : str)->Callable:
