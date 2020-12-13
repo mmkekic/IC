@@ -10,6 +10,8 @@ from .. io      .dst_io     import load_dst
 from .. core.core_functions import find_nearest
 
 from . light_tables_c import LT_SiPM
+from . light_tables_c import LT_PMT
+
 from hypothesis                import given
 from hypothesis                import settings
 from hypothesis.strategies     import floats
@@ -52,5 +54,26 @@ def test_LT_SiPM_values(get_dfs, xs, ys, sipm_indx):
         values = (psf_df.loc[psf_bin].values)
 
     ltvals = lt.get_values(xs, ys, sipm_indx)
+    np.testing.assert_allclose(values, ltvals)
+
+
+
+@given(xs=floats(min_value=-500, max_value=500),
+       ys=floats(min_value=-500, max_value=500),
+       pmt_indx=integers(min_value=0, max_value=11))
+def test_LT_PMTs_values(get_dfs, xs, ys, pmt_indx):
+    fname, lt_df, lt_conf = get_dfs['lt']
+    r_active = lt_conf.loc['ACTIVE_rad'].astype(float).value
+    r = np.sqrt(xs**2 + ys**2)
+
+    lt = LT_PMT(fname=fname)
+
+    xs_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('x'))), xs)
+    ys_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('y'))), ys)
+    if (r>=r_active):
+        values = np.array([0]) #the values are one dimension only
+    else:
+        values = lt_df.loc[xs_lt, ys_lt].values[pmt_indx]
+    ltvals = lt.get_values(xs, ys, pmt_indx)
     np.testing.assert_allclose(values, ltvals)
 
