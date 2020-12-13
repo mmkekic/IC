@@ -2,6 +2,7 @@ import numpy  as np
 import pandas as pd
 import warnings
 from typing import Callable
+from typing import Optional
 
 from functools import partial
 from .. core                import system_of_units as units
@@ -45,7 +46,7 @@ def read_lt(fname, group_name, el_gap=None, active_r=None):
     return lt_df, config_df, el_gap, active_r
 
 
-def create_lighttable_function(filename : str)->Callable:
+def create_lighttable_function(filename : str, active_r : Optional[float]=None)->Callable:
     """From a lighttable file, it returns a function of (x, y) for S2 signal
     or (x, y, z) for S1 signal type. Signal type is read from the table.
     Parameters:
@@ -60,10 +61,8 @@ def create_lighttable_function(filename : str)->Callable:
             Input values must be vectors of same lenght, I. The output
             shape will be (I, number_of_pmts).
     """
-    lt     = load_dst(filename, "LT", "LightTable")
-    Config = load_dst(filename, "LT", "Config")    .set_index("parameter")
-    sensor = Config.loc["sensor"].value
-    act_r  = float(Config.loc["ACTIVE_rad"].value)
+    lt, config, el_gap, act_r = read_lt(filename, 'LT', active_r=active_r)
+    sensor = config.loc["sensor"].value
     lt     = lt.drop(sensor + "_total", axis=1) # drop total column
 
     def get_lt_values(xs, ys, zs):
