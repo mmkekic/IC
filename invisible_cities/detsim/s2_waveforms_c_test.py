@@ -51,3 +51,22 @@ def test_create_wfs_pmts_shape(get_dfs, xs, ys, ts, ps):
     waveform = create_wfs(xs, ys, ts, ps, lt, el_drift_velocity, sensor_time_bin, buffer_length)
     assert isinstance(waveform, np.ndarray)
     assert waveform.shape == (n_sensors, buffer_length//sensor_time_bin)
+
+
+@given(xs=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ys=arrays(np.float, 10, elements = floats  (min_value = -500*mm , max_value = 500*mm )),
+       ts=arrays(np.float, 10, elements = floats  (min_value =    2*mus, max_value = 200*mus)),
+       ps=arrays(np.int32, 10, elements = integers(min_value =    10   , max_value = 100    )))
+def test_create_wfs_tmin(get_dfs, xs, ys, ts, ps):
+    datasipm = DataSiPM('new')
+    fname, psf_df, psf_conf = get_dfs['psf']
+    el_drift_velocity = 2.5 * mm/mus
+    sensor_time_bin   = 1   * mus
+    buffer_length     = 100 * mus
+    lt = LT_SiPM(fname=fname, sipm_database=datasipm)
+    n_sensors = len(lt.sensor_ids)
+    tmin = 100*mus
+    ts_shift = ts - tmin
+    waveform_sh = create_wfs(xs, ys, ts_shift, ps, lt, el_drift_velocity, sensor_time_bin, buffer_length)
+    waveform    = create_wfs(xs, ys, ts      , ps, lt, el_drift_velocity, sensor_time_bin, buffer_length, tmin)
+    np.testing.assert_allclose(waveform_sh, waveform)
