@@ -77,3 +77,22 @@ def test_LT_PMTs_values(get_dfs, xs, ys, pmt_indx):
     ltvals = lt.get_values(xs, ys, pmt_indx)
     np.testing.assert_allclose(values, ltvals)
 
+
+@given(xs=floats(min_value=-500, max_value=500),
+       ys=floats(min_value=-500, max_value=500),
+       pmt_indx=integers(min_value=0, max_value=11))
+def test_LT_PMTs_values_extended_r(get_dfs, xs, ys, pmt_indx):
+    fname, lt_df, lt_conf = get_dfs['lt']
+    r_active = lt_conf.loc['ACTIVE_rad'].astype(float).value
+    r_new = 2*r_active
+    r = np.sqrt(xs**2 + ys**2)
+    with warns(UserWarning):
+        lt = LT_PMT(fname=fname,active_r=r_new)
+    xs_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('x'))), xs)
+    ys_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('y'))), ys)
+    if (r>=r_new):
+        values = np.array([0]) #the values are one dimension only
+    else:
+        values = lt_df.loc[xs_lt, ys_lt].values[pmt_indx]
+    ltvals = lt.get_values(xs, ys, pmt_indx)
+    np.testing.assert_allclose(values, ltvals)
