@@ -22,10 +22,9 @@ def lighttable_filenames(ICDATADIR):
              's2': s2ltfname}
 
 
-@settings(max_examples=500)
-@given(xs = arrays(np.float, 1, elements=floats(min_value=-500, max_value=500)),
-       ys = arrays(np.float, 1, elements=floats(min_value=-500, max_value=500)),
-       zs = arrays(np.float, 1, elements=floats(min_value=-500, max_value=500)))
+@given(xs=floats(min_value=-500, max_value=500),
+       ys=floats(min_value=-500, max_value=500),
+       zs=floats(min_value=-500, max_value=500))
 def test_get_lt_values_s1(lighttable_filenames, xs, ys, zs):
 
     s1_lighttable = lighttable_filenames["s1"]
@@ -46,16 +45,14 @@ def test_get_lt_values_s1(lighttable_filenames, xs, ys, zs):
         xnearest = find_nearest(x_lt, xs)
         ynearest = find_nearest(y_lt, ys)
         znearest = find_nearest(z_lt, zs)
-        expected = lt.loc[xnearest, ynearest, znearest].values
-
-        np.testing.assert_allclose(S1_LT(xs, ys, zs), expected[np.newaxis, :])
+        expected = lt.loc[xnearest, ynearest, znearest].values[None, ...]
     else:
-        np.testing.assert_allclose(S1_LT(xs, ys, zs), np.zeros((1, 12)))
+        expected = np.zeros((1, 12))
+    np.testing.assert_allclose(S1_LT(np.array([xs]), np.array([ys]), np.array([zs])), expected)
 
 
-@settings(max_examples=500)
-@given(xs = arrays(np.float, 1, elements=floats(min_value=-500, max_value=500)),
-       ys = arrays(np.float, 1, elements=floats(min_value=-500, max_value=500)))
+@given(xs=floats(min_value=-500, max_value=500),
+       ys=floats(min_value=-500, max_value=500))
 def test_get_lt_values_s2(lighttable_filenames, xs, ys):
 
     s2_lighttable = lighttable_filenames["s2"]
@@ -74,8 +71,8 @@ def test_get_lt_values_s2(lighttable_filenames, xs, ys):
     if (np.sqrt(xs**2 + ys**2)<=act_r):
         xnearest = find_nearest(x_lt, xs)
         ynearest = find_nearest(y_lt, ys)
-        expected = lt.loc[xnearest, ynearest].values
-
-        np.testing.assert_allclose(S2_LT(xs, ys), expected[np.newaxis, :])
+        expected = lt.loc[xnearest, ynearest].values[None, ...]
     else:
-        np.testing.assert_allclose(S2_LT(xs, ys), np.zeros((1, 12)))
+        expected = np.zeros((1, 12))
+
+    np.testing.assert_allclose(S2_LT(np.array([xs]), np.array([ys])), expected)
