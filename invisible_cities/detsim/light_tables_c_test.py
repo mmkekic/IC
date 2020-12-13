@@ -96,3 +96,20 @@ def test_LT_PMTs_values_extended_r(get_dfs, xs, ys, pmt_indx):
         values = lt_df.loc[xs_lt, ys_lt].values[pmt_indx]
     ltvals = lt.get_values(xs, ys, pmt_indx)
     np.testing.assert_allclose(values, ltvals)
+
+
+def test_LTs_non_physical_sensor(get_dfs):
+    datasipm = DataSiPM('new')
+    fname, psf_df, psf_conf = get_dfs['psf']
+    lt = LT_SiPM(fname=fname, sipm_database=datasipm)
+    xs = 0
+    ys = 0
+    sipm_id = len(datasipm)
+    values = lt.get_values(xs, ys, sipm_id)
+    assert all(values==0)
+
+    fname, lt_df, lt_conf = get_dfs['lt']
+    lt = LT_PMT(fname=fname)
+    pmt_id = 12
+    values = lt.get_values(xs, ys,  pmt_id)
+    assert all(values==0)
