@@ -25,14 +25,10 @@ from .  components                import MC_hits_from_files
 from .. detsim.simulate_electrons import generate_ionization_electrons
 from .. detsim.simulate_electrons import drift_electrons
 from .. detsim.simulate_electrons import diffuse_electrons
-from .. detsim.lighttables        import LT_SiPM
-from .. detsim.lighttables        import LT_PMT
-from .. detsim.ielectrons_loop    import electron_loop
-from .. detsim.simulate_S1        import create_lighttable_function
-from .. detsim.simulate_S1        import compute_S1_pes_at_pmts
-from .. detsim.simulate_S1        import generate_S1_times_from_pes
-from .. detsim.simulate_S1        import create_S1_waveforms
-
+from .. detsim.light_tables_c     import LT_SiPM
+from .. detsim.light_tables_c     import LT_PMT
+from .. detsim.s2_waveforms_c     import create_wfs
+from .. detsim.detsim_waveforms   import s1_waveforms_creator
 
 # @profile
 @city
@@ -53,9 +49,9 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
     nsipm = len(datasipm)
     nsamp_pmt  = int(buffer_length /  wf_pmt_bin_width)
     nsamp_sipm = int(buffer_length /  wf_sipm_bin_width)
-    LT_pmt  = LT_PMT (fname=os.path.expandvars(s2_lighttable))
-    LT_sipm = LT_SiPM(fname=os.path.expandvars(sipm_psf), sipm_database=datasipm)
-    el_gap = LT_sipm.el_gap
+    lt_pmt  = LT_PMT (fname=os.path.expandvars(s2_lighttable))
+    lt_sipm = LT_SiPM(fname=os.path.expandvars(sipm_psf), sipm_database=datasipm)
+    el_gap = lt_sipm.el_gap
     el_gain_sigma = np.sqrt(el_gain * conde_policarpo_factor)
 
 
@@ -84,7 +80,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
     create_pmt_s1_waveforms = fl.map(s1_waveforms_creator(s1_lighttable, ws, wf_pmt_bin_width),
                                      args = ('x_a', 'y_a', 'z_a', 'time_a', 'energy_a', 'tmin', 'buffer_length'),
                                      out = 's1_pmt_waveforms')
-    create_pmt_s2_waveforms = fl.map(s2_waveform_creator (wf_pmt_bin_width, LT_pmt, drift_velocity_EL),
+    create_pmt_s2_waveforms = fl.map(s2_waveform_creator (wf_pmt_bin_width, lt_pmt, drift_velocity_EL),
                                      args = ('x_ph', 'y_ph', 'times_ph', 'nphotons', 'tmin', 'buffer_length'),
                                      out = 's2_pmt_waveforms')
     sum_pmt_waveforms = fl.map(lambda x, y : x+y,
@@ -92,7 +88,7 @@ def detsim(files_in, file_out, event_range, detector_db, run_number, s1_lighttab
                                   out = 'pmt_bin_wfs')
     create_pmt_waveforms = fl.pipe(create_pmt_s1_waveforms, create_pmt_s2_waveforms, sum_pmt_waveforms)
 
-    create_sipm_waveforms = fl.map(s2_waveform_creator (wf_sipm_bin_width, LT_sipm, drift_velocity_EL),
+    create_sipm_waveforms = fl.map(s2_waveform_creator (wf_sipm_bin_width, lt_sipm, drift_velocity_EL),
                                    args = ('x_ph', 'y_ph', 'times_ph', 'nphotons', 'tmin', 'buffer_length'),
                                    out = 'sipm_bin_wfs')
 
@@ -176,20 +172,11 @@ def buffer_times_and_length_getter(wf_pmt_bin_width, wf_sipm_bin_width, el_gap, 
         return start_time, buffer_length
     return get_buffer_times_and_length
 
-def s1_waveforms_creator(s1_lighttable, ws, wf_pmt_bin_width):
-    S1_LT = create_lighttable_function(os.path.expandvars(s1_lighttable))
-    def create_s1_waveforms(x, y, z, time, energy, tmin, buffer_length):
-        s1_photons = np.random.poisson(energy / ws)
-        s1_pes_at_pmts = compute_S1_pes_at_pmts(x, y, z, s1_photons, S1_LT)
-        s1times = generate_S1_times_from_pes(s1_pes_at_pmts, time)
-        s1_wfs = create_S1_waveforms(s1times, buffer_length, wf_pmt_bin_width, tmin)
-        return s1_wfs
-    return create_s1_waveforms
 
 
 def s2_waveform_creator (sns_bin_width, LT, EL_drift_velocity):
     def create_s2_waveform(xs, ys, ts, phs, tmin, buffer_length):
-        waveforms = electron_loop(xs, ys, ts, phs, LT, EL_drift_velocity, sns_bin_width, buffer_length, tmin)
+        waveforms = create_wfs(xs, ys, ts, phs, LT, EL_drift_velocity, sns_bin_width, buffer_length, tmin)
         return np.random.poisson(waveforms)
     return create_s2_waveform
 
