@@ -76,7 +76,7 @@ def create_lighttable_function(filename : str, active_r : Optional[float]=None)-
         zindices = pd.cut(zs[sel], zbins, include_lowest=True, labels=zcenters)
         indices  = pd.Index(zip(xindices, yindices, zindices), name=("x", "y", "z"))
         values   = np.zeros((len(xs), nsensors))
-        values[sel] = lt.loc[indices]
+        values[sel] = lt.reindex(indices, fill_value=0)
         return values
 
     if lt.get("z") is None:
