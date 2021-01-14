@@ -52,9 +52,9 @@ class MCEventMap(tb.IsDescription):
 class MCHitInfo(tb.IsDescription):
     """Stores the simulated hits as metadata using Pytables.
     """
-    hit_position  = tb.Float32Col(    pos=0, shape=3)
+    hit_position  = tb.Float64Col(    pos=0, shape=3)
     hit_time      = tb.Float64Col(    pos=1)
-    hit_energy    = tb.Float32Col(    pos=2)
+    hit_energy    = tb.Float64Col(    pos=2)
     label         = tb. StringCol(20, pos=3)
     particle_indx = tb.  Int16Col(    pos=4)
     hit_indx      = tb.  Int16Col(    pos=5)
@@ -64,22 +64,22 @@ class FEE(tb.IsDescription):
     """Store the parameters used by the EP simulation as metadata."""
     OFFSET        = tb.  Int16Col(pos= 1)  # displaces the baseline (e.g, 700)
     CEILING       = tb.  Int16Col(pos= 2)  # adc top count (4096)
-    PMT_GAIN      = tb.Float32Col(pos= 3)  # Gain of PMT (4.5e6)
-    FEE_GAIN      = tb.Float32Col(pos= 4)  # FE gain (250*ohm)
-    R1            = tb.Float32Col(pos= 5)  # resistor in Ohms (2350*ohm)
-    C1            = tb.Float32Col(pos= 6)  # Capacitor C1 in nF
-    C2            = tb.Float32Col(pos= 7)  # Capacitor C2 in nF
-    ZIN           = tb.Float32Col(pos= 8)  # equivalent impedence
-    DAQ_GAIN      = tb.Float32Col(pos= 9)
-    NBITS         = tb.Float32Col(pos=10)  # number of bits ADC
-    LSB           = tb.Float32Col(pos=11)  # LSB (adc count)
-    NOISE_I       = tb.Float32Col(pos=12)  # Noise at the input
-    NOISE_DAQ     = tb.Float32Col(pos=13)  # Noise at DAQ
-    t_sample      = tb.Float32Col(pos=14)  # sampling time
-    f_sample      = tb.Float32Col(pos=15)  # sampling frequency
-    f_mc          = tb.Float32Col(pos=16)  # sampling frequency in MC (1ns)
-    f_LPF1        = tb.Float32Col(pos=17)  # LPF
-    f_LPF2        = tb.Float32Col(pos=18)  # LPF
+    PMT_GAIN      = tb.Float64Col(pos= 3)  # Gain of PMT (4.5e6)
+    FEE_GAIN      = tb.Float64Col(pos= 4)  # FE gain (250*ohm)
+    R1            = tb.Float64Col(pos= 5)  # resistor in Ohms (2350*ohm)
+    C1            = tb.Float64Col(pos= 6)  # Capacitor C1 in nF
+    C2            = tb.Float64Col(pos= 7)  # Capacitor C2 in nF
+    ZIN           = tb.Float64Col(pos= 8)  # equivalent impedence
+    DAQ_GAIN      = tb.Float64Col(pos= 9)
+    NBITS         = tb.Float64Col(pos=10)  # number of bits ADC
+    LSB           = tb.Float64Col(pos=11)  # LSB (adc count)
+    NOISE_I       = tb.Float64Col(pos=12)  # Noise at the input
+    NOISE_DAQ     = tb.Float64Col(pos=13)  # Noise at DAQ
+    t_sample      = tb.Float64Col(pos=14)  # sampling time
+    f_sample      = tb.Float64Col(pos=15)  # sampling frequency
+    f_mc          = tb.Float64Col(pos=16)  # sampling frequency in MC (1ns)
+    f_LPF1        = tb.Float64Col(pos=17)  # LPF
+    f_LPF2        = tb.Float64Col(pos=18)  # LPF
 
 
 class S12(tb.IsDescription):
@@ -91,9 +91,9 @@ class S12(tb.IsDescription):
     """
     event  = tb.  Int32Col(pos=0)
     peak   = tb.  UInt8Col(pos=2) # peak number
-    time   = tb.Float32Col(pos=3) # time in ns
-    bwidth = tb.Float32Col(pos=4) # bin width in ns
-    ene    = tb.Float32Col(pos=5) # energy in pes
+    time   = tb.Float64Col(pos=3) # time in ns
+    bwidth = tb.Float64Col(pos=4) # bin width in ns
+    ene    = tb.Float64Col(pos=5) # energy in pes
 
 class S12Pmt(tb.IsDescription):
     """Store for a S1/S2 of the individual pmts
@@ -106,7 +106,7 @@ class S12Pmt(tb.IsDescription):
     event  = tb.  Int32Col(pos=0)
     peak   = tb.  UInt8Col(pos=2) # peak number
     npmt   = tb.  UInt8Col(pos=3) # pmt number (in order of IC db 26/8/2017: equal to SensorID)
-    ene    = tb.Float32Col(pos=5) # energy in pes
+    ene    = tb.Float64Col(pos=5) # energy in pes
 
 
 class S2Si(tb.IsDescription):
@@ -119,7 +119,7 @@ class S2Si(tb.IsDescription):
     event = tb.  Int32Col(pos=0)
     peak  = tb.  UInt8Col(pos=2) # peak number
     nsipm = tb.  Int16Col(pos=3) # sipm number
-    ene   = tb.Float32Col(pos=5) # energy in pes
+    ene   = tb.Float64Col(pos=5) # energy in pes
 
 
 class KrTable(tb.IsDescription):
