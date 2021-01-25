@@ -2,7 +2,7 @@ import numpy  as np
 cimport cython
 
 cimport light_tables_c
-from light_tables_c cimport LT
+from light_tables_c cimport LightTable as LT
 
 cimport numpy as np
 from libc.math cimport ceil
@@ -43,7 +43,7 @@ def create_wfs(double [:] xs           ,
         double[:] zs      = lt.zbins
         int num_bins      = <int> ceil (buffer_length/sns_time_bin)
         double [:, :] wfs = np.zeros([nsens, num_bins], dtype=np.double)
-        double el_gap     = lt.el_gap
+        double el_gap     = lt.el_gap_width
 
     #lets create vector of EL_times
     zs_bs         = el_gap/zs.shape[0]
