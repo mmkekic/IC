@@ -89,7 +89,7 @@ cdef class LT_SiPM(LightTable):
 
         self.snsx        = sipm_database.X.values.astype(np.double)
         self.snsy        = sipm_database.Y.values.astype(np.double)
-        self.sensor_ids_ = sipm_database.index.values.astype(np.intc)
+        self.sensor_ids_ = np.arange(len(sipm_database)).astype(np.intc)
         self.max_zel     = el_gap
         self.max_psf     = max(lt_df.index.values)
         self.max_psf2    = self.max_psf**2
