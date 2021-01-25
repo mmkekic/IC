@@ -89,11 +89,10 @@ cdef class LT_SiPM(LightTable):
 
         self.snsx        = sipm_database.X.values.astype(np.double)
         self.snsy        = sipm_database.Y.values.astype(np.double)
-        self.sensor_ids_ = np.arange(len(sipm_database)).astype(np.intc)
         self.max_zel     = el_gap
         self.max_psf     = max(lt_df.index.values)
         self.max_psf2    = self.max_psf**2
-        self.num_sensors = len(self.sensor_ids_)
+        self.num_sensors = len(sipm_database)
 
     @cython.wraparound(False)
     cdef double* get_values_(self, const double x, const double y, const int sns_id):
@@ -149,7 +148,6 @@ cdef class LT_PMT(LightTable):
         bin_y = float(config_df.loc["pitch_y"].value) * units.mm
 
         self.zbins_ = get_el_bins(el_pitch, el_gap)
-        self.sensor_ids_ = np.arange(len(columns)).astype(np.intc)
         values_aux, (xmin, xmax), (ymin, ymax)  = self.__extend_lt_bounds(lt_df, config_df, columns, bin_x, bin_y)
         lenz = len(self.zbins)
         # add dimension for z partitions (1 in case of this table)
@@ -159,7 +157,7 @@ cdef class LT_PMT(LightTable):
         # calculate inverse to speed up calls of get_values_
         self.inv_binx    = 1./bin_x
         self.inv_biny    = 1./bin_y
-        self.num_sensors = len(self.sensor_ids_)
+        self.num_sensors = len(columns)
 
     def __extend_lt_bounds(self, lt_df, config_df, columns, bin_x, bin_y):
         """
