@@ -1,13 +1,14 @@
 """
 This is a module to read the light tables files. Since this depends on the format of the table itself,
 the table-specific class should inherit from the base LightTable class, providing:
+
  - get_values_ method, that depends on the x, y position in the EL plane and the internal sensor_id
    the output of the method is a pointer to array of all the values across EL gap for a given x, y bin
    if there are no values for a given x, y, sensor the result is a NULL pointer
 
- - zbins_      attribute is an  array of positions corresponding to the EL gap partitions
- - sensor_ids_ attribute is an array of internal sensor ids
- - num_sensors - total number of sensors
+ - zbins_  property,  is an  array of positions corresponding to the EL gap partitions
+
+ - num_sensors attribute,  total number of sensors
 
 
 LT_SiPM and LT_PMT are designed for currently availabel light tables for sipms and pmts;
@@ -32,21 +33,24 @@ from ..         core import system_of_units as units
 from  . light_tables import                  read_lt
 
 cdef class LightTable:
-    """Base abstract class to be inherited from for all LightTables classes.
+    """
+    Base abstract class to be inherited from for all LightTables classes.
     It needs get_values_ cython method implemented, as well as zbins_ and sensor_ids_ attributes.
     """
+
     cdef double* get_values_(self, const double x, const double y, const int sensor_id):
         raise NotImplementedError
 
     @property
     def zbins(self):
+        """ Array of z positions """
         return np.asarray(self.zbins_)
-    @property
-    def sensor_ids(self):
-        return np.asarray(self.sensor_ids_)
 
     def get_values(self, const double x, const double y, const int sns_id):
-        """ This is only for using within python"""
+        """
+        Returns array of light table values over EL gap for x, y position
+        of the electron and internal sensor id
+        """
         cdef double* pointer
         pointer = self.get_values_(x, y, sns_id)
         if pointer!=NULL:
@@ -62,6 +66,35 @@ def get_el_bins(el_pitch, el_gap):
     return np.arange(el_pitch/2., el_gap, el_pitch).astype(np.double)
 
 cdef class LT_SiPM(LightTable):
+    """
+    A class to handle reading of sipm distance-based light table. Inherits from base class LightTable
+
+    Attributes:
+    -----------
+       el_gap_width  : double
+             width of the EL gap
+       active_radius : double
+             active radius of full detector volume
+       num_sensors   : int
+             number of sipm sensors
+       snsx          : numpy array of doubles
+             x position of sensors
+       snsy          : numpy array of doubles
+             y position of sensors
+
+    Parameters (keyword):
+    -----------
+        fname         : string
+              filename of the light table
+        sipm_database : pandas dataframe
+              dataframe containing information about sensor positions
+        el_gap_width  : float
+              optionally set new EL gap width
+        active_radius : float
+              optionally set new active radius
+
+    """
+
     cdef readonly:
         double [:] snsx
         double [:] snsy
@@ -120,9 +153,48 @@ cdef class LT_SiPM(LightTable):
         values = &self.values[bin_id, 0]
         return values
 
+    def get_values(self, const double x, const double y, const int sns_id):
+        """
+        Retrive values from the light tables for all z partitions.
 
+        Parameters:
+        -----------
+        x, y   : doubles
+            electron position at EL plane
+        sns_id : int
+            internal sensor id in range [0, num_sensors)
+            sensors are ordered by sipm_database raws
+
+        Returns:
+        --------
+        array of values over EL gap partitions
+        """
+        return super().get_values(x, y, sns_id)
 
 cdef class LT_PMT(LightTable):
+    """
+    A class to handle reading of PMTs light table. Inherits from base class LightTable
+
+    Attributes:
+    -----------
+       el_gap_width  : double
+             width of the EL gap
+       active_radius : double
+             active radius of full detector volume
+       num_sensors   : int
+             number of sipm sensors
+
+    Parameters (keyword):
+    -----------
+        fname         : string
+              filename of the light table
+        el_gap_width  : float
+              optionally set new EL gap width
+        active_radius : float
+              optionally set new active radius
+
+    """
+
     cdef:
         double [:, :, :, ::1] values
         double max_zel
@@ -194,3 +266,21 @@ cdef class LT_PMT(LightTable):
         yindx = <int> cround((y-self.ymin)*self.inv_biny)
         values = &self.values[xindx, yindx, sns_id, 0]
         return values
+
+    def get_values(self, const double x, const double y, const int sns_id):
+        """
+        Retrive values from the light tables for all z partitions.
+
+        Parameters:
+        -----------
+        x, y   : doubles
+            electron position at EL plane
+        sns_id : int
+            internal sensor id in range [0, num_sensors)
+            sensors are ordered by columns of light table file
+
+        Returns:
+        --------
+        array of values over EL gap partitions
+        """
+        return super().get_values(x, y, sns_id)
