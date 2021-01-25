@@ -31,7 +31,7 @@ from libc.math cimport round as cround
 from ..         core import system_of_units as units
 from  . light_tables import                  read_lt
 
-cdef class LT:
+cdef class LightTable:
     """Base abstract class to be inherited from for all LightTables classes.
     It needs get_values_ cython method implemented, as well as zbins_ and sensor_ids_ attributes.
     """
@@ -58,7 +58,7 @@ cdef class LT:
 def get_el_bins(el_pitch, el_gap):
     return np.arange(el_pitch/2., el_gap, el_pitch).astype(np.double)
 
-cdef class LT_SiPM(LT):
+cdef class LT_SiPM(LightTable):
     cdef readonly:
         double [:] snsx
         double [:] snsy
@@ -74,9 +74,9 @@ cdef class LT_SiPM(LT):
     def __init__(self, *, fname, sipm_database, el_gap=None, active_r=None):
         lt_df, config_df, el_gap, active_r = read_lt(fname, 'PSF', el_gap, active_r)
         lt_df.set_index('dist_xy', inplace=True)
-        self.el_gap    = el_gap
-        self.active_r  = active_r
         self.active_r2 = active_r**2
+        self.el_gap_width  = el_gap
+        self.active_radius = active_r
 
         el_pitch  = float(config_df.loc["pitch_z"].value) * units.mm
         self.zbins_    = get_el_bins(el_pitch, el_gap)
@@ -90,8 +90,7 @@ cdef class LT_SiPM(LT):
         self.max_zel     = el_gap
         self.max_psf     = max(lt_df.index.values)
         self.max_psf2    = self.max_psf**2
-        self.nsensors    = len(self.sensor_ids_)
-
+        self.num_sensors = len(self.sensor_ids_)
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -107,7 +106,7 @@ cdef class LT_SiPM(LT):
             double tmp_x
             double tmp_y
             double*  values
-        if sns_id >= self.nsensors:
+        if sns_id >= self.num_sensors:
             return NULL
         xsipm = self.snsx[sns_id]
         ysipm = self.snsy[sns_id]
@@ -123,7 +122,8 @@ cdef class LT_SiPM(LT):
         return values
 
 
-cdef class LT_PMT(LT):
+
+cdef class LT_PMT(LightTable):
     cdef:
         double [:, :, :, ::1] values
         double max_zel
@@ -138,9 +138,9 @@ cdef class LT_PMT(LT):
     def __init__(self, *, fname, el_gap=None, active_r=None):
         from scipy.interpolate import griddata
         lt_df, config_df, el_gap, active_r = read_lt(fname, 'LT', el_gap, active_r)
-        self.el_gap   = el_gap
-        self.active_r = active_r
         self.active_r2 = active_r**2
+        self.el_gap_width  = el_gap
+        self.active_radius = active_r
 
         sensor = config_df.loc["sensor"].value
         columns = [col for col in lt_df.columns if ((sensor in col) and ("total" not in col))]
@@ -148,6 +148,7 @@ cdef class LT_PMT(LT):
         self.zbins_ = get_el_bins(el_pitch, el_gap)
 
         self.sensor_ids_ = np.arange(len(columns)).astype(np.intc)
+        self.num_sensors = len(self.sensor_ids_)
         xtable   = lt_df.x.values
         ytable   = lt_df.y.values
         xmin_, xmax_ = xtable.min(), xtable.max()
@@ -169,7 +170,6 @@ cdef class LT_PMT(LT):
         self.ymin = ymin
         self.inv_binx = 1./bin_x
         self.inv_biny = 1./bin_y
-        self.nsensors = len(self.sensor_ids_)
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
@@ -181,7 +181,7 @@ cdef class LT_PMT(LT):
             int xindx_, yindx_
         if (x*x+y*y)>=self.active_r2 :
             return NULL
-        if sns_id >= self.nsensors:
+        if sns_id >= self.num_sensors:
             return NULL
         xindx_ = <int> cround((x-self.xmin)*self.inv_binx)
         yindx_ = <int> cround((y-self.ymin)*self.inv_biny)
