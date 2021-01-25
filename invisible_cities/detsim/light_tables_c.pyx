@@ -84,7 +84,7 @@ cdef class LT_SiPM(LightTable):
         el_pitch  = float(config_df.loc["pitch_z"].value) * units.mm
         self.zbins_    = get_el_bins(el_pitch, el_gap)
         self.values    = np.array(lt_df.values/len(self.zbins_), order='C', dtype=np.double)
-        self.psf_bin   = float(lt_df.index[1]-lt_df.index[0])
+        self.psf_bin   = float(lt_df.index[1]-lt_df.index[0]) * units.mm #index of psf is the distance to the sensor in mm
         self.inv_bin   = 1./self.psf_bin # compute this once to speed up the get_values_ calls
 
         self.snsx        = sipm_database.X.values.astype(np.double)
