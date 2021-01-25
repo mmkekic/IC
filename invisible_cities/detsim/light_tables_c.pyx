@@ -56,6 +56,9 @@ cdef class LightTable:
 
 
 def get_el_bins(el_pitch, el_gap):
+    """
+    Returns the array of bins position given the bin distance and the total gap
+    """
     return np.arange(el_pitch/2., el_gap, el_pitch).astype(np.double)
 
 cdef class LT_SiPM(LightTable):
