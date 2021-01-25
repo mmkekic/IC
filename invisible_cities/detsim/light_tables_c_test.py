@@ -27,7 +27,7 @@ def test_LT_SiPM_optional_arguments(get_dfs):
     assert lt.active_radius == psf_conf.loc['ACTIVE_rad'].astype(float).value
     #check optional arguments are set with User Warning
     with warns(UserWarning):
-        lt = LT_SiPM(fname=fname, sipm_database=datasipm, el_gap=2, active_r=150)
+        lt = LT_SiPM(fname=fname, sipm_database=datasipm, el_gap_width=2, active_radius=150)
         assert lt.el_gap_width  == 2
         assert lt.active_radius == 150
 
@@ -87,7 +87,7 @@ def test_LT_PMTs_values_extended_r(get_dfs, xs, ys, pmt_indx):
     r_new = 2*r_active
     r = np.sqrt(xs**2 + ys**2)
     with warns(UserWarning):
-        lt = LT_PMT(fname=fname,active_r=r_new)
+        lt = LT_PMT(fname=fname,active_radius=r_new)
     xs_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('x'))), xs)
     ys_lt =  find_nearest(np.sort(np.unique(lt_df.index.get_level_values('y'))), ys)
     if (r>=r_new):
@@ -122,7 +122,7 @@ def test_light_tables_pmt_equal(get_dfs, xs, ys):
     fname, lt_df, lt_conf = get_dfs['lt']
     lt_c  = LT_PMT(fname=fname)
     s2_lt = create_lighttable_function(fname)
-    pmts_ids  = lt_c.sensor_ids
+    pmts_ids  = np.arange(lt_c.num_sensors)
     vals_lt_c = np.concatenate([lt_c.get_values(xs,ys, pmtid)for pmtid in pmts_ids]).flatten()
     vals_lt   = s2_lt(np.array([xs]), np.array([ys])).flatten()
     np.testing.assert_allclose(vals_lt_c, vals_lt)
