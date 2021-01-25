@@ -1,8 +1,8 @@
-cdef class LT:
+cdef class LightTable:
     cdef readonly:
-        double el_gap
-        double active_r
-        int    nsensors
+        double el_gap_width
+        double active_radius
+        int    num_sensors
     cdef:
         int    [:] sensor_ids_
         double [:] zbins_
