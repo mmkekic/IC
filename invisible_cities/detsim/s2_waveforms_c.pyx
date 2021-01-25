@@ -62,7 +62,7 @@ def create_wfs(double [:] xs           ,
     """
 
     cdef:
-        int nsens         = lt.sensor_ids.shape[0]
+        int nsens         = lt.num_sensors
         double[:] zs      = lt.zbins
         int num_bins      = <int> ceil (buffer_length/sns_time_bin)
         double [:, :] wfs = np.zeros([nsens, num_bins], dtype=np.double)
