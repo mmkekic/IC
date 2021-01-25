@@ -34,6 +34,32 @@ def create_wfs(double [:] xs           ,
                double     sns_time_bin ,
                double     buffer_length,
                double     tmin = 0    ):
+    """
+    Simulates s2 waveforms given position and time of the electron at EL plane,
+    light table and approperiate sensor attributes.
+
+    Parameters:
+    -----------
+    xs, ys, ts    : numpy arrays of c doubles
+            arrays  of position and time of electrons reaching EL plane
+    phs           : numpy array of c integers
+            array of photons produced across EL gap per electron
+    lt            : LightTable class instance
+    el_dv         : c double
+            drift velocity of the electrons inside EL gap
+    sns_time_bin  : c double
+            sensor time bin width
+    buffer_length : c double
+            length of the waveform in time
+    tmin          : c double
+            time of first waveform bin
+
+    Returns:
+    --------
+    wfs : numpy array of floats
+            photon count per bin (waveform) matrix of shape
+            number_of_sensors x number_of_bins
+    """
 
     cdef:
         int nsens         = lt.sensor_ids.shape[0]
