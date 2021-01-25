@@ -45,11 +45,13 @@ def create_wfs(double [:] xs           ,
         double [:, :] wfs = np.zeros([nsens, num_bins], dtype=np.double)
         double el_gap     = lt.el_gap_width
 
-    #lets create vector of EL_times
+    #create vector of EL_times
     zs_bs         = el_gap/zs.shape[0]
-    time_bs_sns   = zs_bs /el_dv/sns_time_bin
-    max_time_sns  = el_gap/el_dv/sns_time_bin
-    #el_times corresponding to light_table z partitions
+    time_bs_sns   = zs_bs /el_dv/sns_time_bin #z partition bin size in units of mus/sensor bin size
+    max_time_sns  = el_gap/el_dv/sns_time_bin #maximum z partition time in units of mus/sensor bin size
+    # el_times array corresponding to light_table z partitions in units of sensor bin size:
+    # lt bin size in mm is divided with drift velocity to obtain bin size in mus and then divided by
+    # sensor time bin size
     cdef double [:] el_times = np.arange(time_bs_sns/2.,max_time_sns,time_bs_sns).astype(np.double)
 
     cdef:
@@ -62,7 +64,7 @@ def create_wfs(double [:] xs           ,
         x_p  = xs[pindx]
         y_p  = ys[pindx]
         ph_p = phs[pindx]
-        t_p  = (ts[pindx]-tmin)/sns_time_bin
+        t_p  = (ts[pindx]-tmin)/sns_time_bin #division with sensor bin size faster if done outside inner loop
         for snsindx in range(nsens):
             lt_factors_p = lt.get_values_(x_p, y_p, snsindx)
             if lt_factors_p != NULL:
@@ -74,8 +76,8 @@ def create_wfs(double [:] xs           ,
                     signal = lt_factors_p[elindx] * ph_p
                     wfs[snsindx, tindx] += signal
 
-    #smearing factor in case time_bs_sns is larger than sns_time_bin
-    #used in S2 simulation on pmts
+    # smearing factor in case light_table_z_partitions/drift_velocity is larger than sensor bin size
+    # mostly used in S2 simulation on pmts
     cdef int nsmear = <int> ceil(time_bs_sns)
     cdef int nsmear_r, nsmear_l
     if nsmear>1:
