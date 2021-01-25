@@ -77,15 +77,15 @@ cdef class LT_SiPM(LightTable):
     def __init__(self, *, fname, sipm_database, el_gap=None, active_r=None):
         lt_df, config_df, el_gap, active_r = read_lt(fname, 'PSF', el_gap, active_r)
         lt_df.set_index('dist_xy', inplace=True)
-        self.active_r2 = active_r**2
         self.el_gap_width  = el_gap
         self.active_radius = active_r
+        self.active_r2 = active_r**2 # compute this once to speed up the get_values_ calls
 
         el_pitch  = float(config_df.loc["pitch_z"].value) * units.mm
         self.zbins_    = get_el_bins(el_pitch, el_gap)
         self.values    = np.array(lt_df.values/len(self.zbins_), order='C', dtype=np.double)
         self.psf_bin   = float(lt_df.index[1]-lt_df.index[0])
-        self.inv_bin   = 1./self.psf_bin
+        self.inv_bin   = 1./self.psf_bin # compute this once to speed up the get_values_ calls
 
         self.snsx        = sipm_database.X.values.astype(np.double)
         self.snsy        = sipm_database.Y.values.astype(np.double)
@@ -141,16 +141,25 @@ cdef class LT_PMT(LightTable):
     def __init__(self, *, fname, el_gap=None, active_r=None):
         from scipy.interpolate import griddata
         lt_df, config_df, el_gap, active_r = read_lt(fname, 'LT', el_gap, active_r)
-        self.active_r2 = active_r**2
         self.el_gap_width  = el_gap
         self.active_radius = active_r
+        self.active_r2 = active_r**2 # compute this once to speed up the get_values_ calls
 
         sensor = config_df.loc["sensor"].value
+        #remove column total from the list of columns
         columns = [col for col in lt_df.columns if ((sensor in col) and ("total" not in col))]
-        el_pitch    = el_gap #this is hardcoded for this specific table, should this be in config?
         self.zbins_ = get_el_bins(el_pitch, el_gap)
+        el_pitch    = el_gap #hardcoded for this specific table
 
         self.sensor_ids_ = np.arange(len(columns)).astype(np.intc)
+        lenz = len(self.zbins)
+        # add dimension for z partitions (1 in case of this table)
+        self.values = np.asarray(np.repeat(values_aux, lenz, axis=-1), dtype=np.double, order='C')
+        self.xmin = xmin
+        self.ymin = ymin
+        # calculate inverse to speed up calls of get_values_
+        self.inv_binx    = 1./bin_x
+        self.inv_biny    = 1./bin_y
         self.num_sensors = len(self.sensor_ids_)
         xtable   = lt_df.x.values
         ytable   = lt_df.y.values
@@ -167,12 +176,6 @@ cdef class LT_PMT(LightTable):
         xx, yy     = np.meshgrid(x, y)
         values_aux = (np.concatenate([griddata((xtable, ytable), lt_df[column], (yy, xx), method='nearest')[..., None]
                                       for column in columns],axis=-1)[..., None]).astype(np.double)
-        lenz = len(self.zbins)
-        self.values = np.asarray(np.repeat(values_aux, lenz, axis=-1), dtype=np.double, order='C')
-        self.xmin = xmin
-        self.ymin = ymin
-        self.inv_binx = 1./bin_x
-        self.inv_biny = 1./bin_y
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
