@@ -120,7 +120,7 @@ def test_time_distribution_pmts(get_dfs, xs, ys, ts, ps):
     sensor_time_bin   = 10  * ns
     buffer_length     = 20  * mus
     time_bins = np.arange(0, buffer_length, sensor_time_bin)
-    el_time   = lt.el_gap/el_drift_velocity
+    el_time   = lt.el_gap_width/el_drift_velocity
     tindx_min = np.digitize(ts, time_bins)-1
     tindx_max = np.digitize(ts+el_time, time_bins)-1
     nbins_el_gap = tindx_max-tindx_min
@@ -147,7 +147,7 @@ def test_time_distribution_sipms(get_dfs, xs, ys, ts, ps):
     buffer_length     = 20  * mus
     time_bins = np.arange(0, buffer_length+sensor_time_bin, sensor_time_bin)
     lt = LT_SiPM(fname=fname, sipm_database=datasipm)
-    el_time   = lt.el_gap/el_drift_velocity
+    el_time   = lt.el_gap_width/el_drift_velocity
     tindx_min = np.digitize(ts, time_bins)-1
     tindx_max = np.digitize(ts+el_time, time_bins)-1
     nbins_el_gap = tindx_max-tindx_min
