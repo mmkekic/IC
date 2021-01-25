@@ -139,7 +139,6 @@ cdef class LT_PMT(LightTable):
         double active_r2
 
     def __init__(self, *, fname, el_gap=None, active_r=None):
-        from scipy.interpolate import griddata
         lt_df, config_df, el_gap, active_r = read_lt(fname, 'LT', el_gap, active_r)
         self.el_gap_width  = el_gap
         self.active_radius = active_r
@@ -148,10 +147,13 @@ cdef class LT_PMT(LightTable):
         sensor = config_df.loc["sensor"].value
         #remove column total from the list of columns
         columns = [col for col in lt_df.columns if ((sensor in col) and ("total" not in col))]
-        self.zbins_ = get_el_bins(el_pitch, el_gap)
         el_pitch    = el_gap #hardcoded for this specific table
+        bin_x = float(config_df.loc["pitch_x"].value) * units.mm
+        bin_y = float(config_df.loc["pitch_y"].value) * units.mm
 
+        self.zbins_ = get_el_bins(el_pitch, el_gap)
         self.sensor_ids_ = np.arange(len(columns)).astype(np.intc)
+        values_aux, (xmin, xmax), (ymin, ymax)  = self.__extend_lt_bounds(lt_df, config_df, columns, bin_x, bin_y)
         lenz = len(self.zbins)
         # add dimension for z partitions (1 in case of this table)
         self.values = np.asarray(np.repeat(values_aux, lenz, axis=-1), dtype=np.double, order='C')
@@ -161,21 +163,28 @@ cdef class LT_PMT(LightTable):
         self.inv_binx    = 1./bin_x
         self.inv_biny    = 1./bin_y
         self.num_sensors = len(self.sensor_ids_)
+
+    def __extend_lt_bounds(self, lt_df, config_df, columns, bin_x, bin_y):
+        """
+        Extend light tables values up to a full active_radius volume, using nearest interpolation method.
+        The resulting tensor has shape of num_bins_x, num_bins_y.
+        """
+        from scipy.interpolate import griddata
         xtable   = lt_df.x.values
         ytable   = lt_df.y.values
         xmin_, xmax_ = xtable.min(), xtable.max()
         ymin_, ymax_ = ytable.min(), ytable.max()
-        bin_x = float(config_df.loc["pitch_x"].value) * units.mm
-        bin_y = float(config_df.loc["pitch_y"].value) * units.mm
-        # extend min, max to go over the active volume
-        xmin, xmax = xmin_-np.ceil((self.active_r-np.abs(xmin_))/bin_x)*bin_x, xmax_+np.ceil((self.active_r-np.abs(xmax_))/bin_x)*bin_x
-        ymin, ymax = ymin_-np.ceil((self.active_r-np.abs(ymin_))/bin_y)*bin_y, ymax_+np.ceil((self.active_r-np.abs(ymax_))/bin_y)*bin_y
-        #create new centers
+        # extend min, max to go one bin-width over the active volume
+        xmin, xmax = xmin_-np.ceil((self.active_radius-np.abs(xmin_))/bin_x)*bin_x, xmax_+np.ceil((self.active_radius-np.abs(xmax_))/bin_x)*bin_x
+        ymin, ymax = ymin_-np.ceil((self.active_radius-np.abs(ymin_))/bin_y)*bin_y, ymax_+np.ceil((self.active_radius-np.abs(ymax_))/bin_y)*bin_y
+        #create new centers that extend over full active volume
         x          = np.arange(xmin, xmax+bin_x/2., bin_x).astype(np.double)
         y          = np.arange(ymin, ymax+bin_y/2., bin_y).astype(np.double)
+        #interpolate missing values using nearest method from scipy
         xx, yy     = np.meshgrid(x, y)
         values_aux = (np.concatenate([griddata((xtable, ytable), lt_df[column], (yy, xx), method='nearest')[..., None]
                                       for column in columns],axis=-1)[..., None]).astype(np.double)
+        return values_aux, (xmin, xmax), (ymin, ymax)
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
