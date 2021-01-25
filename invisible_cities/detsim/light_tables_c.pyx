@@ -74,8 +74,8 @@ cdef class LT_SiPM(LightTable):
         double inv_bin
         double active_r2
 
-    def __init__(self, *, fname, sipm_database, el_gap=None, active_r=None):
-        lt_df, config_df, el_gap, active_r = read_lt(fname, 'PSF', el_gap, active_r)
+    def __init__(self, *, fname, sipm_database, el_gap_width=None, active_radius=None):
+        lt_df, config_df, el_gap, active_r = read_lt(fname, 'PSF', el_gap_width, active_radius)
         lt_df.set_index('dist_xy', inplace=True)
         self.el_gap_width  = el_gap
         self.active_radius = active_r
@@ -135,8 +135,8 @@ cdef class LT_PMT(LightTable):
         double ymin
         double active_r2
 
-    def __init__(self, *, fname, el_gap=None, active_r=None):
-        lt_df, config_df, el_gap, active_r = read_lt(fname, 'LT', el_gap, active_r)
+    def __init__(self, *, fname, el_gap_width=None, active_radius=None):
+        lt_df, config_df, el_gap, active_r = read_lt(fname, 'LT', el_gap_width, active_radius)
         self.el_gap_width  = el_gap
         self.active_radius = active_r
         self.active_r2 = active_r**2 # compute this once to speed up the get_values_ calls
