@@ -193,12 +193,12 @@ cdef class LT_PMT(LightTable):
     cdef double* get_values_(self, const double x, const double y, const int sns_id):
         cdef:
             double*  values
-            int xindx_, yindx_
+            int xindx, yindx
         if (x*x+y*y)>=self.active_r2 :
             return NULL
         if sns_id >= self.num_sensors:
             return NULL
-        xindx_ = <int> cround((x-self.xmin)*self.inv_binx)
-        yindx_ = <int> cround((y-self.ymin)*self.inv_biny)
-        values = &self.values[xindx_, yindx_, sns_id, 0]
+        xindx = <int> cround((x-self.xmin)*self.inv_binx)
+        yindx = <int> cround((y-self.ymin)*self.inv_biny)
+        values = &self.values[xindx, yindx, sns_id, 0]
         return values
