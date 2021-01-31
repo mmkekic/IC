@@ -439,6 +439,31 @@ def pmap_from_files(paths):
                 yield dict(pmap=pmaps[event_number], run_number=run_number,
                            event_number=event_number, timestamp=timestamp)
 
+def hits_df_from_files(paths):
+    for path in paths:
+        try:
+            hits_df = load_dst (path, 'RECO', 'Events')
+            kdst_df = load_dst (path, 'DST' , 'Events')
+        except tb.exceptions.NoSuchNodeError:
+            continue
+
+        with tb.open_file(path, "r") as h5in:
+            try:
+                run_number  = get_run_number(h5in)
+                event_info  = get_event_info(h5in)
+            except (tb.exceptions.NoSuchNodeError, IndexError):
+                continue
+
+            check_lengths(event_info, hits_df.event.unique())
+
+            for evtinfo in event_info:
+                event_number, timestamp = evtinfo.fetch_all_fields()
+                hits = hits_df.loc[hits_df.event == event_number]
+                yield dict(hits = hits,
+                           kdst = kdst_df.loc[kdst_df.event==event_number],
+                           run_number = run_number,
+                           event_number = event_number,
+                           timestamp = timestamp)
 
 def cdst_from_files(paths: List[str]) -> Iterator[Dict[str,Union[pd.DataFrame, MCInfo, int, float]]]:
     """Reader of the files, yields collected hits,
