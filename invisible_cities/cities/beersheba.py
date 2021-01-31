@@ -22,14 +22,14 @@ from numpy       import nan_to_num
 
 from typing      import Tuple
 from typing      import List
-
+from typing      import Callable
 from enum        import auto
 
 from .  components import city
 from .  components import collect
 from .  components import copy_mc_info
 from .  components import print_every
-from .  components import cdst_from_files
+from .  components import hits_df_from_files
 
 from .  esmeralda  import summary_writer
 
@@ -47,7 +47,7 @@ from .. reco.deconv_functions  import drop_isolated_sensors
 from .. reco.deconv_functions  import deconvolve
 from .. reco.deconv_functions  import richardson_lucy
 from .. reco.deconv_functions  import InterpolationMethod
-
+from .. reco                import corrections          as cof
 from .. io.run_and_event_io    import run_and_event_writer
 from .. io.          dst_io    import df_writer
 from .. io.          dst_io    import load_dst
@@ -76,7 +76,6 @@ def deconvolve_signal(det_db          : pd.DataFrame,
                       sample_width    : List[float],
                       bin_size        : List[float],
                       diffusion       : Tuple[float]=(1., 1., 0.3),
-                      energy_type     : HitEnergy=HitEnergy.Ec,
                       deconv_mode     : DeconvolutionMode=DeconvolutionMode.joint,
                       n_dim           : int=2,
                       cut_type        : CutType=CutType.abs,
@@ -96,7 +95,6 @@ def deconvolve_signal(det_db          : pd.DataFrame,
     iteration_tol   : Stopping threshold (difference between iterations).
     sample_width    : Sampling size of the sensors.
     bin_size        : Size of the interpolated bins.
-    energy_type     : Energy type ('E' or 'Ec', see Esmeralda) used for assignment.
     deconv_mode     : 'joint' or 'separate', 1 or 2 step deconvolution, see description later.
     diffusion       : Diffusion coefficients in each dimension for 'separate' mode.
     n_dim           : Number of dimensions to apply the method (usually 2).
@@ -122,8 +120,6 @@ def deconvolve_signal(det_db          : pd.DataFrame,
     deconvolution = deconvolve(n_iterations, iteration_tol,
                                sample_width, det_grid       , inter_method)
 
-    if not isinstance(energy_type , HitEnergy          ):
-        raise ValueError(f'energy_type {energy_type} is not a valid energy type.')
     if not isinstance(inter_method, InterpolationMethod):
         raise ValueError(f'inter_method {inter_method} is not a valid interpolation method.')
     if not isinstance(cut_type    , CutType            ):
@@ -179,10 +175,17 @@ def deconvolve_signal(det_db          : pd.DataFrame,
         deco_dst = []
         df.loc[:, "NormQ"] = np.nan
         for peak, hits in df.groupby("npeak"):
-            hits.loc[:, "NormQ"] = hits.loc[:, 'Q'] / hits.loc[:, 'Q'].sum()
-            deconvolved_hits = pd.concat([deconvolve_hits(df_z, z) for z, df_z in hits.groupby("Z")], ignore_index=True)
-            distribute_energy(deconvolved_hits, hits, energy_type)
-            deco_dst.append(deconvolved_hits)
+            all_hits = []
+            for z, df_z in hits.groupby('Z'):
+                if len(df_z)==1:
+                    all_hits.append(df_z)
+                else:
+                    df_z.loc[:, "NormQ"] = df_z.Q/df_z.Q.sum()
+                    deconv_hits_ = deconvolve_hits(df_z, z)
+                    deconv_hits = distribute_energy_z(deconv_hits_, df_z)
+                    all_hits.append(deconv_hits)
+            all_hits_df = pd.concat(all_hits, ignore_index=True).sort_values(['Z', 'E'])
+            deco_dst.append(all_hits_df)
 
         return pd.concat(deco_dst, ignore_index=True)
 
@@ -217,17 +220,19 @@ def create_deconvolution_df(hits, deconv_e, pos, cut_type, e_cut, n_dim):
     else:
         raise ValueError(f'cut_type {cut_type} is not a valid cut type.')
 
+    if sum(sel_deconv)==0:
+        sel_deconv = deconv_e==max(deconv_e)
+
     df['E']     = deconv_e[sel_deconv]
     df['event'] = hits.event.unique()[0]
     df['npeak'] = hits.npeak.unique()[0]
-    df['Z']     = hits.Z    .unique()[0] if n_dim == 2 else pos[2][sel_deconv]
+    df['Z']     = hits.Z    .unique()[0]
     df['X']     = pos[0][sel_deconv]
     df['Y']     = pos[1][sel_deconv]
-
+    df['time'] = hits.time.unique()[0]
     return df
 
-
-def distribute_energy(df, cdst, energy_type):
+def distribute_energy_z(df, cdst):
     '''
     Assign the energy of a dataframe (cdst) to another dataframe (deconvolved),
     distributing it according to the charge fraction of each deconvolution hit.
@@ -236,9 +241,12 @@ def distribute_energy(df, cdst, energy_type):
     ----------
     df          : Deconvolved dataframe with a single S2 (npeak)
     cdst        : Dataframe with the sensor response (usually a cdst)
-    energy_type : HitEnergy with which 'type' of energy should be assigned.
     '''
-    df.loc[:, 'E'] = df.E / df.E.sum() * cdst.loc[:, energy_type.value].sum()
+
+    sum_e = cdst.E.sum()
+    sum_edc = df.E.sum()
+    df.loc[:,'E'] = df.E/sum_edc*sum_e
+    return df
 
 
 def cut_over_Q(q_cut, redist_var):
@@ -289,6 +297,77 @@ def drop_isolated(distance, redist_var):
     return drop_isolated
 
 
+
+def hits_redistributor(thr):
+    """ Distribute energy of hits with Q below thr"""
+    def copy_last_position_NN(dfp):
+        """ For NN hits copy X, Y position of the closest non-NN hit"""
+        indxs = dfp.groupby('Z').apply(lambda x:x.Q.idxmax()).values
+        NN_slices = dfp[dfp.Q<0].index
+        non_NN = np.setdiff1d(indxs, NN_slices)
+        Z_aux = dfp.loc[non_NN].Z
+        NN_z = dfp.loc[NN_slices].Z.values
+        closest = np.argmin(np.abs(Z_aux.values[None, :]-NN_z[:, None]), axis=-1)
+        dfp.loc[NN_slices, 'X']=dfp.loc[Z_aux.index[closest],'X'].values
+        dfp.loc[NN_slices, 'Y']=dfp.loc[Z_aux.index[closest],'Y'].values
+        return dfp
+
+    def red_per_z(dfp_z):
+        dfp_cp = dfp_z.copy()
+        Esum = dfp_cp.E.sum()
+        pass_indx = dfp_cp[dfp_cp.Q>thr].index
+        if len(pass_indx)>0:
+            Qsum = dfp_cp.loc[pass_indx, 'Q'].sum()
+            dfp_cp.loc[pass_indx, 'E'] = dfp_cp.loc[pass_indx, 'Q']*Esum/Qsum
+            return dfp_cp.loc[pass_indx]
+        else:
+            maxid = dfp_cp.Q.idxmax
+            dfp_cp = dfp_cp.loc[maxid].to_frame().T
+            dfp_cp.Q = -dfp_cp.Q
+            return dfp_cp
+    def redistribute_hits(dfp):
+        dfp = copy_last_position_NN(dfp)
+        return dfp.groupby('Z').apply(red_per_z).reset_index(drop=True)
+    return redistribute_hits
+
+
+def hits_corrector(map_fname        : str  ,
+                   apply_temp       : bool) -> Callable:
+    """
+    For a given correction map and hit threshold/ merging parameters returns a function that applies thresholding, merging and
+    energy and Z corrections to a given HitCollection object.
+
+    Parameters
+    ----------
+    map_fname        : string (filepath)
+        filename of the map
+    apply_temp       : bool
+        whether to apply temporal corrections
+        must be set to False if no temporal correction dataframe exists in map file
+
+    Returns
+    ----------
+    A function that takes HitCollection as input and returns HitCollection that containes
+    only non NN hits of charge above threshold_charge with modified Ec and Z fields.
+    """
+    map_fname = expandvars(map_fname)
+    maps      = cof.read_maps(map_fname)
+    get_coef  = cof.apply_all_correction(maps, apply_temp = apply_temp, norm_strat = cof.norm_strategy.kr)
+    if maps.t_evol is not None:
+        time_to_Z = cof.get_df_to_z_converter(maps)
+    else:
+        time_to_Z = lambda x: x
+    def threshold_and_correct_hits(hitc : pd.DataFrame) -> pd.DataFrame:
+        t = hitc.time
+        Ec = hitc.E * get_coef(hitc.X,hitc.Y,hitc.Z,hitc.time)
+        hitc.loc[:, 'Ec'] = Ec
+        hitc.loc[:, 'Zc'] = time_to_Z(hitc.Z)
+        return hitc
+    return threshold_and_correct_hits
+
+
+
+
 def check_nonempty_dataframe(df) -> bool:
     """
     Filter for Beersheba flow. The flow stops if:
@@ -310,11 +389,25 @@ def deconv_writer(h5out, compression='ZLIB4'):
                          descriptive_string = 'Deconvolved hits',
                          columns_to_index   = ['event']         )
     return write_deconv
+def kdst_from_df_writer(h5out, compression='ZLIB4'):
+    """
+    For a given open table returns a writer for KDST dataframe info
+    """
+    def write_kdst(df):
+        return df_writer(h5out              = h5out        ,
+                         df                 = df           ,
+                         compression        = compression  ,
+                         group_name         = 'DST'        ,
+                         table_name         = 'Events'     ,
+                         descriptive_string = 'KDST Events',
+                         columns_to_index   = ['event']    )
+    return write_kdst
+
 
 
 @city
 def beersheba(files_in, file_out, compression, event_range, print_mod, detector_db, run_number,
-              deconv_params = dict()):
+              deconv_params = dict(), cor_params=dict()):
     """
     The city corrects Penthesilea hits energy and extracts topology information.
     ----------
@@ -351,9 +444,6 @@ def beersheba(files_in, file_out, compression, event_range, print_mod, detector_
             Sampling of the sensors in each dimension (usuallly the pitch).
         bin_size       : list[float]
             Bin size (mm) of the deconvolved image.
-        energy_type    : str ('E', 'Ec')
-            Marks which energy from Esmeralda (E = uncorrected, Ec = corrected)
-            should be assigned to the deconvolved track.
         deconv_mode    : str ('joint', 'separate')
             - 'joint' deconvolves once using a PSF based on Z that includes
                both EL and diffusion spread aproximated to a Z range.
@@ -386,7 +476,6 @@ def beersheba(files_in, file_out, compression, event_range, print_mod, detector_
 
     deconv_params['cut_type'    ] = CutType            (deconv_params['cut_type'    ])
     deconv_params['deconv_mode' ] = DeconvolutionMode  (deconv_params['deconv_mode' ])
-    deconv_params['energy_type' ] = HitEnergy          (deconv_params['energy_type' ])
     deconv_params['inter_method'] = InterpolationMethod(deconv_params['inter_method'])
 
     deconv_params['psf_fname'   ] = expandvars(deconv_params['psf_fname'])
@@ -397,20 +486,27 @@ def beersheba(files_in, file_out, compression, event_range, print_mod, detector_
     if deconv_params['n_dim'] > 2:
         raise     NotImplementedError(f"{deconv_params['n_dim']}-dimensional PSF not yet implemented")
 
-    cut_sensors           = fl.map(cut_over_Q   (deconv_params.pop("q_cut")    , ['E', 'Ec']),
-                                   item = 'cdst')
-    drop_sensors          = fl.map(drop_isolated(deconv_params.pop("drop_dist"), ['E', 'Ec']),
-                                   item = 'cdst')
+    # cut_sensors           = fl.map(cut_over_Q   (deconv_params.pop("q_cut")    , ['E', 'Ec']),
+    #                                item = 'cdst')
+    # drop_sensors          = fl.map(drop_isolated(deconv_params.pop("drop_dist"), ['E', 'Ec']),
+    #                                item = 'cdst')
+
+    cut_sensors           = fl.map(hits_redistributor  (deconv_params.pop("q_cut")),
+                                   item = 'hits')
+
+
     filter_events_no_hits = fl.map(check_nonempty_dataframe,
-                                   args = 'cdst',
-                                   out  = 'cdst_passed_no_hits')
+                                   args = 'hits',
+                                   out  = 'hits_passed_no_hits')
     deconvolve_events     = fl.map(deconvolve_signal(DataSiPM(detector_db, run_number), **deconv_params),
-                                   args = 'cdst',
+                                   args = 'hits',
                                    out  = 'deconv_dst')
+    correct_hits = fl.map(hits_corrector( **cor_params),
+                          item = 'deconv_dst')
 
     event_count_in        = fl.spy_count()
     event_count_out       = fl.spy_count()
-    events_passed_no_hits = fl.count_filter(bool, args = "cdst_passed_no_hits")
+    events_passed_no_hits = fl.count_filter(bool, args = "hits_passed_no_hits")
 
     evtnum_collect        = collect()
 
@@ -418,22 +514,22 @@ def beersheba(files_in, file_out, compression, event_range, print_mod, detector_
         # Define writers
         write_event_info = fl.sink(run_and_event_writer (h5out), args = ("run_number", "event_number", "timestamp"))
         write_deconv     = fl.sink(  deconv_writer(h5out=h5out), args =  "deconv_dst")
-        write_summary    = fl.sink( summary_writer(h5out=h5out), args =  "summary"   )
-        result = push(source = cdst_from_files(files_in),
+        write_kdst_table      = fl.sink( kdst_from_df_writer(h5out), args="kdst")
+        result = push(source = hits_df_from_files(files_in),
                       pipe   = pipe(fl.slice(*event_range, close_all=True)    ,
                                     print_every(print_mod)                    ,
                                     event_count_in.spy                        ,
                                     cut_sensors                               ,
-                                    drop_sensors                              ,
                                     filter_events_no_hits                     ,
                                     events_passed_no_hits    .filter          ,
                                     deconvolve_events                         ,
+                                    correct_hits                              ,
                                     event_count_out.spy                       ,
                                     fl.branch("event_number"     ,
                                               evtnum_collect.sink)            ,
                                     fl.fork(write_deconv    ,
-                                            write_summary   ,
-                                            write_event_info))                ,
+                                            write_event_info,
+                                            write_kdst_table))                ,
                       result = dict(events_in   = event_count_in       .future,
                                     events_out  = event_count_out      .future,
                                     evtnum_list = evtnum_collect       .future,
